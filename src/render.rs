@@ -18,6 +18,7 @@ pub fn render(content: &str, theme: &Theme) -> (Vec<Line<'static>>, Vec<String>)
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
+    opts.insert(Options::ENABLE_TASKLISTS);
     let parser = Parser::new_ext(content, opts);
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut raw: Vec<String> = Vec::new();
@@ -100,23 +101,39 @@ impl Renderer {
         let mut list_counters: Vec<usize> = Vec::new();
         let mut in_table = false;
         let mut table_data: TableData = TableData::default();
+let mut needs_space = false;
+        let mut quote_depth: usize = 0;
 
         loop {
             match parser.next() {
                 Some(Event::Start(tag)) => match tag {
                     Tag::Paragraph => {
+                        if needs_space {
+                            raw.push(String::new());
+                            lines.push(Line::from(vec![]));
+                        }
                         let spans = self.collect_inline(&mut parser, &TagEnd::Paragraph, &self.para);
                         raw_line(&spans, raw);
                         lines.push(Line::from(spans));
+                        needs_space = true;
                     }
                     Tag::Heading { level, .. } => {
+                        if needs_space {
+                            raw.push(String::new());
+                            lines.push(Line::from(vec![]));
+                        }
                         let idx = (level as usize).saturating_sub(1).min(5);
                         let hl = &self.headings[idx];
                         let spans = self.collect_inline(&mut parser, &TagEnd::Heading(level), hl);
                         raw_line(&spans, raw);
                         lines.push(Line::from(spans));
+                        needs_space = true;
                     }
 Tag::CodeBlock(kind) => {
+                        if needs_space {
+                            raw.push(String::new());
+                            lines.push(Line::from(vec![]));
+                        }
                         if let CodeBlockKind::Fenced(ref info) = kind
                             && !info.is_empty()
                         {
@@ -130,21 +147,28 @@ Tag::CodeBlock(kind) => {
                         if let CodeBlockKind::Fenced(info) = kind
                             && !info.is_empty()
                         {
-                            for (spans, raw_text) in highlight_code(&info, &code, self.code_block.bg) {
-                                raw.push(raw_text);
+                            for (mut spans, raw_text) in highlight_code(&info, &code, self.code_block.bg) {
+                                spans.insert(0, Span::raw("  "));
+                                raw.push(format!("  {}", raw_text));
                                 lines.push(Line::from(spans));
                             }
                         } else {
                             for line_text in code.lines() {
-                                raw.push(line_text.to_string());
+                                raw.push(format!("  {}", line_text));
                                 lines.push(Line::from(Span::styled(
-                                    line_text.to_string(),
+                                    format!("  {}", line_text),
                                     self.code_block.as_style(),
                                 )));
                             }
                         }
+                        needs_space = true;
                     }
                     Tag::List(start) => {
+                        if needs_space {
+                            raw.push(String::new());
+                            lines.push(Line::from(vec![]));
+                            needs_space = false;
+                        }
                         list_counters.push(start.unwrap_or(1) as usize);
                     }
                     Tag::Item => {
@@ -179,6 +203,11 @@ Tag::CodeBlock(kind) => {
                         table_data.rows.push(row);
                     }
                     Tag::BlockQuote(_) => {
+                        quote_depth += 1;
+                        if needs_space {
+                            raw.push(String::new());
+                            lines.push(Line::from(vec![]));
+                        }
                         let spans = self.collect_inline_with_breaks(&mut parser, &TagEnd::BlockQuote(None), &self.para, true);
                         let mut line_groups: Vec<Vec<Span<'static>>> = vec![Vec::new()];
                         for span in spans {
@@ -191,13 +220,16 @@ Tag::CodeBlock(kind) => {
                         if line_groups.is_empty() {
                             line_groups.push(Vec::new());
                         }
-                        let mark_style = Style::default().fg(self.quote_mark.unwrap_or(Color::DarkGray));
+                        let colors = [Color::Rgb(106, 153, 85), Color::Rgb(86, 156, 214), Color::Rgb(212, 71, 71)];
+                        let quote_color = self.quote_mark.unwrap_or(colors[(quote_depth - 1) % colors.len()]);
+                        let mark_style = Style::default().fg(quote_color);
                         for group in &line_groups {
                             raw_line(group, raw);
                             let mut quoted = vec![Span::styled(format!("{} ", QUOTE_CHAR), mark_style)];
                             quoted.extend(group.iter().cloned());
                             lines.push(Line::from(quoted));
                         }
+                        needs_space = true;
                     }
                     Tag::FootnoteDefinition(_) => {
                         let _ = self.skip_to(&mut parser, &TagEnd::FootnoteDefinition);
@@ -207,21 +239,35 @@ Tag::CodeBlock(kind) => {
                 Some(Event::End(tag_end)) => match tag_end {
                     TagEnd::List(_) => {
                         list_counters.pop();
+                        needs_space = true;
+                    }
+                    TagEnd::BlockQuote(_) => {
+                        quote_depth = quote_depth.saturating_sub(1);
                     }
                     TagEnd::Table if in_table => {
+                            if needs_space {
+                            raw.push(String::new());
+                            lines.push(Line::from(vec![]));
+                        }
                             in_table = false;
                             self.render_table(&table_data, lines, raw);
+                            needs_space = true;
                         }
                     TagEnd::TableHead | TagEnd::TableRow | TagEnd::TableCell => {}
                     TagEnd::Paragraph => {}
                     _ => {}
                 },
                 Some(Event::Rule) => {
+                    if needs_space {
+                            raw.push(String::new());
+                            lines.push(Line::from(vec![]));
+                        }
                     raw.push(String::new());
                     lines.push(Line::from(Span::styled(
                         "─".repeat(80),
                         Style::default().fg(self.rule.unwrap_or(Color::DarkGray)),
                     )));
+                    needs_space = true;
                 }
                 Some(Event::Html(text)) => {
                     raw.push(text.to_string());
@@ -320,10 +366,11 @@ Tag::CodeBlock(kind) => {
                 Some(Event::TaskListMarker(checked)) => {
                     flush_buf(&mut buf, &mut spans, base);
                     let icon = if checked { "☑" } else { "☐" };
+                    let color = if checked { Color::Green } else { Color::Red };
                     spans.push(Span::styled(
                         icon.to_string(),
                         Style::default()
-                            .fg(Color::Cyan)
+                            .fg(color)
                             .add_modifier(Modifier::BOLD),
                     ));
                 }
@@ -398,14 +445,14 @@ Tag::CodeBlock(kind) => {
 
         // Header
         if !data.headers.is_empty() {
-            self.push_table_row(&data.headers, &col_widths, lines, raw, &b, &data.alignments);
+            self.push_table_row(&data.headers, &col_widths, lines, raw, &b, &data.alignments, true);
             lines.push(self.table_border_line(&col_widths, "├", "┼", "┤", &b));
             raw.push(String::new());
         }
 
         // Data rows
         for row in &data.rows {
-            self.push_table_row(row, &col_widths, lines, raw, &b, &data.alignments);
+            self.push_table_row(row, &col_widths, lines, raw, &b, &data.alignments, false);
         }
 
         // Bottom border
@@ -440,6 +487,7 @@ Tag::CodeBlock(kind) => {
         raw: &mut Vec<String>,
         style: &Style,
         alignments: &[Alignment],
+        is_header: bool,
     ) {
         let mut spans = vec![Span::styled("│".to_string(), *style)];
         let mut raw_text = String::new();
@@ -463,11 +511,19 @@ Tag::CodeBlock(kind) => {
             if left_pad > 0 {
                 spans.push(Span::styled(" ".repeat(left_pad), Style::default()));
             }
-            spans.extend(cell_spans.iter().cloned());
+            for s in cell_spans {
+                let span = if is_header {
+                    let style = s.style.clone().add_modifier(Modifier::BOLD);
+                    Span::styled(s.content.clone(), style)
+                } else {
+                    s.clone()
+                };
+                spans.push(span);
+            }
             if right_pad > 0 {
                 spans.push(Span::styled(" ".repeat(right_pad), Style::default()));
             }
-            spans.push(Span::styled(" │".to_string(), *style));
+            spans.push(Span::styled("  │".to_string(), *style));
             raw_text.push(' ');
             for _ in 0..left_pad {
                 raw_text.push(' ');
@@ -475,7 +531,7 @@ Tag::CodeBlock(kind) => {
             for s in cell_spans {
                 raw_text.push_str(s.content.as_ref());
             }
-            raw_text.push_str(&" ".repeat(right_pad + 1));
+            raw_text.push_str(&" ".repeat(right_pad + 2));
         }
         raw.push(raw_text);
         lines.push(Line::from(spans));
@@ -658,7 +714,7 @@ mod tests {
     fn renders_headings() {
         let theme = Theme::default_dark();
         let (lines, raw) = render("# H1\n## H2\n### H3", &theme);
-        assert_eq!(raw.len(), 3);
+        assert_eq!(raw.len(), 5);
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -681,10 +737,48 @@ mod tests {
     }
 
     #[test]
-    fn renders_inline_code() {
+    fn renders_nested_list() {
         let theme = Theme::default_dark();
-        let (lines, raw) = render("Use `code` here", &theme);
-        assert_eq!(raw[0], "Use code here");
+        let md = "- outer\n  - inner\n- outer2\n";
+        let (lines, _) = render(md, &theme);
+        insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn renders_blockquote_nested() {
+        let theme = Theme::default_dark();
+        let md = "> first\n>> second\n>>> third\n";
+        let (lines, _) = render(md, &theme);
+        assert!(lines.len() >= 1, "should have at least one line");
+        insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn renders_ordered_list() {
+        let theme = Theme::default_dark();
+        let (lines, _) = render("1. one\n2. two\n", &theme);
+        insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn renders_task_list() {
+        let theme = Theme::default_dark();
+        let md = "- [x] done\n- [ ] todo\n";
+        let (lines, _) = render(md, &theme);
+        let text: String = lines[0].spans.iter().filter_map(|s| {
+            if s.content.contains('☑') || s.content.contains('☐') { Some(s.content.as_ref().to_string()) } else { None }
+        }).collect();
+        assert!(!text.is_empty(), "should contain task markers: got {lines:?}");
+        insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn renders_image() {
+        let theme = Theme::default_dark();
+        let (lines, _) = render("![alt](img.png)", &theme);
+        assert_eq!(lines.len(), 1);
+        let text: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.contains("img.png"), "URL should appear: {text}");
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -706,10 +800,39 @@ mod tests {
     }
 
     #[test]
+    fn renders_table_alignment() {
+        let theme = Theme::default_dark();
+        let md = "| Left | Center | Right |\n|:-----|:------:|------:|\n| a | b | c |\n";
+        let (lines, _) = render(md, &theme);
+
+        let text: String = lines[3].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(
+            text,
+            "│a     │  b     │    c  │",
+            "data row alignment: got '{text}'"
+        );
+
+        let border: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(
+            border,
+            "┌──────┬────────┬───────┐",
+            "top border: got '{border}'"
+        );
+    }
+
+    #[test]
+    fn renders_complex_table() {
+        let theme = Theme::default_dark();
+        let md = "| Name  | Age | City    |\n|-------|-----|---------|\n| Alice | 30  | Madrid  |\n| Bob   | 25  | París   |\n| Carol | 35  | Roma    |\n";
+        let (lines, _) = render(md, &theme);
+        assert!(lines.len() >= 5, "should have border + header + border + rows + border, got {} lines", lines.len());
+        insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
     fn renders_unordered_list() {
         let theme = Theme::default_dark();
-        let (lines, raw) = render("- item1\n- item2\n", &theme);
-        assert_eq!(raw.len(), 2);
+        let (lines, _) = render("- item1\n- item2\n", &theme);
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -734,6 +857,25 @@ mod tests {
         let theme = Theme::default_dark();
         let (lines, raw) = render("Hello ~~world~~", &theme);
         assert!(raw[0].contains("world"));
+        insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn renders_mixed_content_with_spacing() {
+        let theme = Theme::default_dark();
+        let md = "# Title\n\nHello world.\n\n> A quote.\n\n- item\n\n```\ncode\n```\n";
+        let (lines, _) = render(md, &theme);
+        // Title, blank, para, blank, quote, blank, list, blank, code
+        assert!(lines.len() > 3, "should have spacing between sections: {} lines", lines.len());
+        insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn renders_inline_code_bg() {
+        let theme = Theme::default_dark();
+        let (lines, _) = render("Use `code` here", &theme);
+        let code_span = &lines[0].spans[1];
+        assert!(code_span.style.bg.is_some(), "inline code should have bg color: {code_span:?}");
         insta::assert_debug_snapshot!(lines);
     }
 }

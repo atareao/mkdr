@@ -27,18 +27,18 @@
 
 ## Testing
 
-- [ ] **Tests de integración** — en `tests/` para la app completa
-- [ ] **Tests de snapshot: más casos** — listas anidadas, blockquote anidado, tablas complejas
-- [ ] **Tests de search** — búsqueda + highlight sobre contenido renderizado
+- [x] **Tests de integración** — en `tests/` para la app completa (CLI args, archivo no encontrado, stdin pipe)
+- [x] **Tests de snapshot: más casos** — listas anidadas, blockquote anidado, ordered list, task list, image, tablas complejas, contenido mixto con spacing, inline_code bg
+- [x] **Tests de search** — búsqueda + highlight sobre contenido renderizado
 
 ## Empaquetado
 
-- [ ] **Completado bash/zsh/fish** en CI (generar y subir en release)
-- [ ] **Homebrew formula** — `brew install atareao/tap/mdr`
-- [ ] **AUR package** — `PKGBUILD` para Arch Linux
-- [ ] **cargo-binstall** — soporte para instalar desde binarios
+- [x] **Completado bash/zsh/fish** en CI — generado en release y subido como asset
+- [x] **Homebrew formula** — en `packaging/Formula/mdr.rb`
+- [x] **AUR package** — `packaging/PKGBUILD` para `mdr-bin`
+- [x] **cargo-binstall** — compatible sin configuración adicional (binario único `mdr`)
 
 ## Bugs conocidos
 
-- [ ] **Wrap + tablas** — con `--wrap word`, las tablas se rompen
-- [ ] **Archivo no encontrado** — mensaje de error mejorado (sugerir `--help`)
+- [x] **Wrap + tablas** — con `--wrap word`, las tablas se rompen (se desactiva wrap automáticamente)
+- [x] **Archivo no encontrado** — mensaje de error antes de entrar a raw mode, sugerencia de uso

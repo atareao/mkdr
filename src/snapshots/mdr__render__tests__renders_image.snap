@@ -1,0 +1,11 @@
+---
+source: src/render.rs
+expression: lines
+---
+[
+    Line::from_iter([
+        Span::from("🖼 ").dark_gray(),
+        Span::from("alt").fg(Color::Rgb(212, 212, 212)),
+        Span::from(" ─ img.png").dark_gray().dim(),
+    ]),
+]

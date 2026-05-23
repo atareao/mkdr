@@ -91,3 +91,79 @@ pub fn highlight_line(line: &Line<'static>, query: &str) -> Line<'static> {
 
     Line::from(new_spans)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_search_lines_basic() {
+        let lines = vec!["hello world".to_string(), "goodbye".to_string(), "HELLO again".to_string()];
+        let results = search_lines(&lines, "hello");
+        assert_eq!(results, vec![0, 2]);
+    }
+
+    #[test]
+    fn test_search_lines_empty_query() {
+        let lines = vec!["hello".to_string()];
+        assert!(search_lines(&lines, "").is_empty());
+    }
+
+    #[test]
+    fn test_search_lines_no_match() {
+        let lines = vec!["hello".to_string()];
+        assert!(search_lines(&lines, "zzz").is_empty());
+    }
+
+    #[test]
+    fn test_find_next_match_forward() {
+        let results = vec![1, 3, 5];
+        assert_eq!(find_next_match(&results, Some(0)), Some(1));
+        assert_eq!(find_next_match(&results, Some(1)), Some(3));
+        assert_eq!(find_next_match(&results, Some(4)), Some(5));
+        assert_eq!(find_next_match(&results, Some(5)), Some(1)); // wraps
+    }
+
+    #[test]
+    fn test_find_next_match_empty() {
+        assert_eq!(find_next_match(&[], Some(0)), None);
+    }
+
+    #[test]
+    fn test_find_prev_match_backward() {
+        let results = vec![1, 3, 5];
+        assert_eq!(find_prev_match(&results, Some(0)), Some(5)); // wraps
+        assert_eq!(find_prev_match(&results, Some(3)), Some(1));
+        assert_eq!(find_prev_match(&results, Some(4)), Some(3));
+        assert_eq!(find_prev_match(&results, Some(6)), Some(5));
+    }
+
+    #[test]
+    fn test_find_prev_match_empty() {
+        assert_eq!(find_prev_match(&[], Some(0)), None);
+    }
+
+    #[test]
+    fn test_highlight_line_basic() {
+        let line = Line::from(Span::raw("hello world"));
+        let highlighted = highlight_line(&line, "world");
+        let text: String = highlighted.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(text, "hello world");
+        assert!(highlighted.spans.len() >= 2); // "hello " + "world"
+    }
+
+    #[test]
+    fn test_highlight_line_multiple_matches() {
+        let line = Line::from(Span::raw("foo bar foo"));
+        let highlighted = highlight_line(&line, "foo");
+        let text: String = highlighted.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(text, "foo bar foo");
+    }
+
+    #[test]
+    fn test_highlight_line_empty_query() {
+        let line = Line::from(Span::raw("hello"));
+        let highlighted = highlight_line(&line, "");
+        assert_eq!(highlighted.spans.len(), 1);
+    }
+}

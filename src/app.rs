@@ -242,8 +242,19 @@ impl App {
                 .collect()
         };
 
+        let has_table = display_lines.iter().any(|l| {
+            l.spans.iter().any(|s| {
+                s.content.contains('┌')
+                    || s.content.contains('│')
+                    || s.content.contains('└')
+                    || s.content.contains('├')
+            })
+        });
+
         let mut paragraph = Paragraph::new(display_lines).scroll((self.scroll as u16, self.h_scroll));
-        if self.wrap_mode == WrapMode::Word {
+        if has_table {
+            // disable wrapping when tables are visible
+        } else if self.wrap_mode == WrapMode::Word {
             paragraph = paragraph.wrap(Wrap { trim: false });
         } else if self.wrap_mode == WrapMode::Char {
             paragraph = paragraph.wrap(Wrap { trim: true });

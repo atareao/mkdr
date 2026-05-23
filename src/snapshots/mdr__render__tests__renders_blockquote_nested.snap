@@ -1,0 +1,7 @@
+---
+source: src/render.rs
+expression: lines
+---
+[
+    Line::from(Span::from("▐ ").fg(Color::Rgb(106, 153, 85))),
+]

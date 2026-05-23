@@ -118,6 +118,23 @@ fn main() {
         std::process::exit(1);
     }
 
+    // Check files exist before entering raw mode
+    for f in &cli_args.files {
+        if !f.exists() {
+            eprintln!("Error: '{}' not found", f.display());
+            eprintln!();
+            eprintln!("Usage: markrender [OPTIONS] <FILE>");
+            eprintln!("   or: cat file.md | markrender [OPTIONS]");
+            eprintln!();
+            eprintln!("Built-in themes: {}", theme::Theme::list_names().join(", "));
+            std::process::exit(1);
+        }
+        if f.is_dir() {
+            eprintln!("Error: '{}' is a directory", f.display());
+            std::process::exit(1);
+        }
+    }
+
     enable_raw_mode().expect("failed to enable raw mode");
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen).expect("failed to enter alternate screen");

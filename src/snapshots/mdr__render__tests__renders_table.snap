@@ -1,5 +1,6 @@
 ---
 source: src/render.rs
+assertion_line: 760
 expression: lines
 ---
 [
@@ -12,12 +13,12 @@ expression: lines
     ]),
     Line::from_iter([
         Span::from("│").fg(Color::Rgb(128, 128, 128)),
-        Span::from("A").fg(Color::Rgb(212, 212, 212)),
+        Span::from("A").fg(Color::Rgb(212, 212, 212)).bold(),
         Span::from("  "),
-        Span::from(" │").fg(Color::Rgb(128, 128, 128)),
-        Span::from("B").fg(Color::Rgb(212, 212, 212)),
+        Span::from("  │").fg(Color::Rgb(128, 128, 128)),
+        Span::from("B").fg(Color::Rgb(212, 212, 212)).bold(),
         Span::from("  "),
-        Span::from(" │").fg(Color::Rgb(128, 128, 128)),
+        Span::from("  │").fg(Color::Rgb(128, 128, 128)),
     ]),
     Line::from_iter([
         Span::from("├").fg(Color::Rgb(128, 128, 128)),
@@ -30,10 +31,10 @@ expression: lines
         Span::from("│").fg(Color::Rgb(128, 128, 128)),
         Span::from("1").fg(Color::Rgb(212, 212, 212)),
         Span::from("  "),
-        Span::from(" │").fg(Color::Rgb(128, 128, 128)),
+        Span::from("  │").fg(Color::Rgb(128, 128, 128)),
         Span::from("2").fg(Color::Rgb(212, 212, 212)),
         Span::from("  "),
-        Span::from(" │").fg(Color::Rgb(128, 128, 128)),
+        Span::from("  │").fg(Color::Rgb(128, 128, 128)),
     ]),
     Line::from_iter([
         Span::from("└").fg(Color::Rgb(128, 128, 128)),

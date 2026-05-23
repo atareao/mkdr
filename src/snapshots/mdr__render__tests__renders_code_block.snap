@@ -1,11 +1,12 @@
 ---
 source: src/render.rs
-assertion_line: 619
+assertion_line: 751
 expression: lines
 ---
 [
     Line::from(Span::from(" rust ").dark_gray().bold()),
     Line::from_iter([
+        Span::from("  "),
         Span::from("fn").fg(Color::Rgb(180, 142, 173)).bg(Color::Rgb(30, 30, 30)),
         Span::from(" ").fg(Color::Rgb(192, 197, 206)).bg(Color::Rgb(30, 30, 30)),
         Span::from("main").fg(Color::Rgb(143, 161, 179)).bg(Color::Rgb(30, 30, 30)),
