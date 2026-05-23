@@ -2,26 +2,28 @@
 
 ## Renderizado
 
-- [x] **Strikethrough** — ~~texto~~ renderiza con estilo `strikeout` (#808080 + crossed out)
-- [ ] **Task lists** — `- [x]` / `- [ ]` con íconos ☑/☐ y estilo
-- [ ] **Tablas: alineación** — respetar alineación izquierda/derecha/centro
-- [ ] **Imágenes** — mostrar `![alt](url)` como link con ícono
-- [ ] **Enlaces por referencia** — `[text][ref]` + `[ref]: url`
+- [x] **Syntax highlighting en bloques de código** — usar `syntect` con temas, coloreando según el lenguaje
+- [x] **Blockquotes multi-línea** — barra vertical `▐` continua en cada línea envuelta
+- [x] **Links con URL** — mostrar la URL en gris tenue tras el texto (`[texto](url)` → `texto ─ url`)
+- [x] **Task lists** — `- [x]` / `- [ ]` con íconos ☑/☐ y estilo
+- [x] **Imágenes** — mostrar `![alt](url)` como link con ícono
+- [x] **Tablas: alineación** — respetar alineación izquierda/derecha/centro
+- [x] **Enlaces por referencia** — `[text][ref]` + `[ref]: url` (pulldown-cmark resuelve internamente)
 
 ## Navegación
 
-- [ ] **Historial de búsqueda** — `↑`/`↓` recupera búsquedas anteriores
-- [ ] **Marcadores** — `m{a-z}` marca línea, `'{a-z}` salta a marca
-- [ ] **Ir a porcentaje** — `:50%` salta al 50% del documento
+- [x] **Historial de búsqueda** — `↑`/`↓` recupera búsquedas anteriores (50 últimas)
+- [x] **Marcadores** — `m{a-z}` marca línea, `'{a-z}` salta a marca
+- [x] **Ir a porcentaje** — `:50%` salta al 50% del documento
 
 ## UX
 
 - [x] **Auto-crear `~/.config/mdr/themes/`** si no existe al arrancar
 - [x] **Completado de shell** — `mdr --completions bash`
-- [ ] **Pipe status bar** — mostrar "stdin" en barra al leer de pipe
-- [ ] **Múltiples archivos: lista** — `:files` muestra índice navegable
-- [ ] **Temas desde TUI** — `:theme nord` cambia sin reiniciar
-- [ ] **Recargar configuración** — `:reload` recarga config + theme
+- [x] **Pipe status bar** — mostrar "stdin" en barra al leer de pipe
+- [x] **Múltiples archivos: lista** — `:files` muestra índice navegable con `j`/`k`/`Enter`
+- [x] **Temas desde TUI** — `:theme nord` cambia sin reiniciar
+- [x] **Recargar configuración** — `:reload` recarga config + theme
 
 ## Testing
 

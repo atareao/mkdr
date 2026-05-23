@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use std::time::SystemTime;
@@ -39,11 +40,13 @@ impl WrapMode {
     }
 }
 
+#[derive(Clone, Copy, PartialEq)]
 pub enum Mode {
     Normal,
     SearchForward,
     SearchBackward,
     GoToLine,
+    FileList,
 }
 
 pub struct App {
@@ -60,6 +63,11 @@ pub struct App {
     search_query: String,
     search_results: Vec<usize>,
     search_idx: Option<usize>,
+    search_history: Vec<String>,
+    search_history_idx: Option<usize>,
+    bookmarks: HashMap<char, usize>,
+    expecting_bookmark_set: bool,
+    expecting_bookmark_jump: bool,
     show_status: bool,
     show_line_numbers: bool,
     wrap_mode: WrapMode,
@@ -94,6 +102,11 @@ impl App {
             search_query: String::new(),
             search_results: Vec::new(),
             search_idx: None,
+            search_history: Vec::new(),
+            search_history_idx: None,
+            bookmarks: HashMap::new(),
+            expecting_bookmark_set: false,
+            expecting_bookmark_jump: false,
             show_status,
             show_line_numbers: line_numbers,
             wrap_mode,
@@ -178,6 +191,7 @@ impl App {
                         self.handle_search_key(key.code);
                     }
                     Mode::GoToLine => self.handle_goto_key(key.code),
+                    Mode::FileList => self.handle_filelist_key(key.code),
                 }
             }
         }
@@ -207,23 +221,26 @@ impl App {
 
         let content_area = areas[0];
 
-        let display_lines: Vec<Line<'static>> = self
-            .lines
-            .iter()
-            .enumerate()
-            .map(|(i, line)| {
-                let line = if !self.search_query.is_empty() {
-                    highlight_line(line, &self.search_query)
-                } else {
-                    line.clone()
-                };
-                if self.show_line_numbers {
-                    prepend_line_number(line, i + 1, self.lines.len())
-                } else {
-                    line
-                }
-            })
-            .collect();
+        let display_lines: Vec<Line<'static>> = if self.mode == Mode::FileList {
+            self.build_file_list()
+        } else {
+            self.lines
+                .iter()
+                .enumerate()
+                .map(|(i, line)| {
+                    let line = if !self.search_query.is_empty() {
+                        highlight_line(line, &self.search_query)
+                    } else {
+                        line.clone()
+                    };
+                    if self.show_line_numbers {
+                        prepend_line_number(line, i + 1, self.lines.len())
+                    } else {
+                        line
+                    }
+                })
+                .collect()
+        };
 
         let mut paragraph = Paragraph::new(display_lines).scroll((self.scroll as u16, self.h_scroll));
         if self.wrap_mode == WrapMode::Word {
@@ -321,6 +338,7 @@ impl App {
                         .add_modifier(Modifier::BOLD),
                 ));
             }
+            Mode::FileList => {}
             Mode::Normal => {}
         }
 
@@ -328,6 +346,27 @@ impl App {
     }
 
     fn handle_normal_key(&mut self, code: KeyCode) {
+        if self.expecting_bookmark_set {
+            self.expecting_bookmark_set = false;
+            if let KeyCode::Char(c) = code
+                && c.is_ascii_lowercase()
+            {
+                self.bookmarks.insert(c, self.scroll);
+            }
+            return;
+        }
+        if self.expecting_bookmark_jump {
+            self.expecting_bookmark_jump = false;
+            if let KeyCode::Char(c) = code
+                && c.is_ascii_lowercase()
+            {
+                if let Some(&pos) = self.bookmarks.get(&c) {
+                    self.scroll = pos.min(self.max_scroll);
+                }
+            }
+            return;
+        }
+
         match code {
             KeyCode::Char('q') | KeyCode::Esc => {
                 std::process::exit(0);
@@ -416,6 +455,12 @@ impl App {
                     self.load_current_file();
                 }
             }
+            KeyCode::Char('m') => {
+                self.expecting_bookmark_set = true;
+            }
+            KeyCode::Char('\'') => {
+                self.expecting_bookmark_jump = true;
+            }
             _ => {}
         }
     }
@@ -427,6 +472,13 @@ impl App {
                 let forward = matches!(self.mode, Mode::SearchForward);
                 self.search_query = query.clone();
                 if !query.is_empty() {
+                    if self.search_history.last().map_or(true, |last| last != &query) {
+                        self.search_history.push(query.clone());
+                        if self.search_history.len() > 50 {
+                            self.search_history.remove(0);
+                        }
+                    }
+                    self.search_history_idx = None;
                     self.search_results = search_lines(&self.raw_lines, &query);
                     self.search_idx = if forward {
                         find_next_match(&self.search_results, Some(self.scroll))
@@ -438,6 +490,30 @@ impl App {
                     }
                 }
                 self.mode = Mode::Normal;
+            }
+            KeyCode::Up => {
+                let idx = self.search_history_idx.get_or_insert(self.search_history.len());
+                if *idx > 0 {
+                    *idx -= 1;
+                    self.input_buf = self.search_history[*idx].clone();
+                    self.search_query = self.input_buf.clone();
+                    self.search_results = search_lines(&self.raw_lines, &self.search_query);
+                    self.search_idx = None;
+                }
+            }
+            KeyCode::Down => {
+                if let Some(idx) = &mut self.search_history_idx {
+                    if *idx + 1 < self.search_history.len() {
+                        *idx += 1;
+                        self.input_buf = self.search_history[*idx].clone();
+                    } else {
+                        self.search_history_idx = None;
+                        self.input_buf.clear();
+                    }
+                    self.search_query = self.input_buf.clone();
+                    self.search_results = search_lines(&self.raw_lines, &self.search_query);
+                    self.search_idx = None;
+                }
             }
             KeyCode::Esc => {
                 self.mode = Mode::Normal;
@@ -469,12 +545,24 @@ impl App {
     fn handle_goto_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Enter => {
-                if let Ok(line_num) = self.input_buf.parse::<usize>() {
-                    let target = line_num.saturating_sub(1).min(self.max_scroll);
-                    self.scroll = target;
+                let input = std::mem::take(&mut self.input_buf);
+                let trimmed = input.trim();
+                if trimmed.starts_with("theme ") {
+                    let name = trimmed.trim_start_matches("theme ").trim();
+                    self.switch_theme(name);
+                } else if trimmed == "reload" {
+                    self.reload_config();
+                } else if trimmed == "files" && self.has_multiple_files() {
+                    self.mode = Mode::FileList;
+                    return;
+                } else if let Some(pct) = trimmed.strip_suffix('%')
+                    && let Ok(pct_val) = pct.parse::<usize>()
+                {
+                    self.scroll = (pct_val * self.max_scroll / 100).min(self.max_scroll);
+                } else if let Ok(line_num) = trimmed.parse::<usize>() {
+                    self.scroll = line_num.saturating_sub(1).min(self.max_scroll);
                 }
                 self.mode = Mode::Normal;
-                self.input_buf.clear();
             }
             KeyCode::Esc => {
                 self.mode = Mode::Normal;
@@ -483,8 +571,92 @@ impl App {
             KeyCode::Backspace => {
                 self.input_buf.pop();
             }
-            KeyCode::Char(c) if c.is_ascii_digit() => {
+            KeyCode::Char(c) if !c.is_control() => {
                 self.input_buf.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    fn switch_theme(&mut self, name: &str) {
+        let theme = match name {
+            "dark" => Theme::default_dark(),
+            "light" => Theme::default_light(),
+            name => Theme::load(name).unwrap_or_else(|| {
+                eprintln!("Warning: theme '{}' not found, using default dark", name);
+                Theme::default_dark()
+            }),
+        };
+        self.theme = theme;
+        self.render_content();
+    }
+
+    fn reload_config(&mut self) {
+        let config = crate::config::load_config();
+        if let Some(name) = config.theme {
+            self.switch_theme(&name);
+        } else {
+            self.render_content();
+        }
+        if let Some(wrap) = config.wrap {
+            self.wrap_mode = WrapMode::from_str(&wrap);
+        }
+    }
+
+    fn build_file_list(&self) -> Vec<Line<'static>> {
+        let mut result = Vec::new();
+        result.push(Line::from(Span::styled(
+            " Files ",
+            Style::default()
+                .fg(Color::White)
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD),
+        )));
+        result.push(Line::from(Span::styled(
+            "───",
+            Style::default().fg(Color::DarkGray),
+        )));
+        for (i, path) in self.files.iter().enumerate() {
+            let marker = if i == self.file_index { "▸ " } else { "  " };
+            let fg = if i == self.file_index {
+                Color::Cyan
+            } else {
+                Color::White
+            };
+            let bold = if i == self.file_index {
+                Modifier::BOLD
+            } else {
+                Modifier::empty()
+            };
+            result.push(Line::from(Span::styled(
+                format!("{}{}", marker, path.display()),
+                Style::default().fg(fg).add_modifier(bold),
+            )));
+        }
+        result
+    }
+
+    fn handle_filelist_key(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Up | KeyCode::Char('k') => {
+                if self.file_index > 0 {
+                    self.file_index -= 1;
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                if self.file_index + 1 < self.files.len() {
+                    self.file_index += 1;
+                }
+            }
+            KeyCode::Enter => {
+                self.scroll = 0;
+                self.h_scroll = 0;
+                self.search_idx = None;
+                self.load_current_file();
+                self.mode = Mode::Normal;
+            }
+            KeyCode::Esc => {
+                self.mode = Mode::Normal;
             }
             _ => {}
         }

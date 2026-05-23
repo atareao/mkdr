@@ -1,7 +1,12 @@
-use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
+use std::sync::OnceLock;
+use syntect::easy::HighlightLines;
+use syntect::highlighting::ThemeSet;
+use syntect::parsing::SyntaxSet;
+use syntect::util::LinesWithEndings;
 
 use crate::theme::Theme;
 
@@ -111,8 +116,8 @@ impl Renderer {
                         raw_line(&spans, raw);
                         lines.push(Line::from(spans));
                     }
-                    Tag::CodeBlock(kind) => {
-                        if let CodeBlockKind::Fenced(info) = kind
+Tag::CodeBlock(kind) => {
+                        if let CodeBlockKind::Fenced(ref info) = kind
                             && !info.is_empty()
                         {
                             raw.push(info.to_string());
@@ -122,12 +127,21 @@ impl Renderer {
                             )));
                         }
                         let code = self.collect_code(&mut parser);
-                        for line_text in code.lines() {
-                            raw.push(line_text.to_string());
-                            lines.push(Line::from(Span::styled(
-                                line_text.to_string(),
-                                self.code_block.as_style(),
-                            )));
+                        if let CodeBlockKind::Fenced(info) = kind
+                            && !info.is_empty()
+                        {
+                            for (spans, raw_text) in highlight_code(&info, &code, self.code_block.bg) {
+                                raw.push(raw_text);
+                                lines.push(Line::from(spans));
+                            }
+                        } else {
+                            for line_text in code.lines() {
+                                raw.push(line_text.to_string());
+                                lines.push(Line::from(Span::styled(
+                                    line_text.to_string(),
+                                    self.code_block.as_style(),
+                                )));
+                            }
                         }
                     }
                     Tag::List(start) => {
@@ -152,9 +166,9 @@ impl Renderer {
                             lines.push(Line::from(item_spans));
                         }
                     }
-                    Tag::Table(_alignments) => {
+                    Tag::Table(alignments) => {
                         in_table = true;
-                        table_data = TableData::default();
+                        table_data = TableData { alignments, ..Default::default() };
                     }
                     Tag::TableHead => {
                         let row = self.collect_table_row(&mut parser);
@@ -165,15 +179,25 @@ impl Renderer {
                         table_data.rows.push(row);
                     }
                     Tag::BlockQuote(_) => {
-                        let mark = Span::styled(
-                            format!("{} ", QUOTE_CHAR),
-                            Style::default().fg(self.quote_mark.unwrap_or(Color::DarkGray)),
-                        );
-                        let spans = self.collect_inline(&mut parser, &TagEnd::BlockQuote(None), &self.para);
-                        raw_line(&spans, raw);
-                        let mut quoted = vec![mark];
-                        quoted.extend(spans);
-                        lines.push(Line::from(quoted));
+                        let spans = self.collect_inline_with_breaks(&mut parser, &TagEnd::BlockQuote(None), &self.para, true);
+                        let mut line_groups: Vec<Vec<Span<'static>>> = vec![Vec::new()];
+                        for span in spans {
+                            if span.content == "\n" {
+                                line_groups.push(Vec::new());
+                            } else if let Some(last) = line_groups.last_mut() {
+                                last.push(span);
+                            }
+                        }
+                        if line_groups.is_empty() {
+                            line_groups.push(Vec::new());
+                        }
+                        let mark_style = Style::default().fg(self.quote_mark.unwrap_or(Color::DarkGray));
+                        for group in &line_groups {
+                            raw_line(group, raw);
+                            let mut quoted = vec![Span::styled(format!("{} ", QUOTE_CHAR), mark_style)];
+                            quoted.extend(group.iter().cloned());
+                            lines.push(Line::from(quoted));
+                        }
                     }
                     Tag::FootnoteDefinition(_) => {
                         let _ = self.skip_to(&mut parser, &TagEnd::FootnoteDefinition);
@@ -184,12 +208,10 @@ impl Renderer {
                     TagEnd::List(_) => {
                         list_counters.pop();
                     }
-                    TagEnd::Table => {
-                        if in_table {
+                    TagEnd::Table if in_table => {
                             in_table = false;
                             self.render_table(&table_data, lines, raw);
                         }
-                    }
                     TagEnd::TableHead | TagEnd::TableRow | TagEnd::TableCell => {}
                     TagEnd::Paragraph => {}
                     _ => {}
@@ -217,11 +239,16 @@ impl Renderer {
         }
     }
 
-    fn collect_inline(
+    fn collect_inline(&self, events: &mut Parser<'_>, end_tag: &TagEnd, base: &ThemeStyle) -> Vec<Span<'static>> {
+        self.collect_inline_with_breaks(events, end_tag, base, false)
+    }
+
+    fn collect_inline_with_breaks(
         &self,
         events: &mut Parser<'_>,
         end_tag: &TagEnd,
         base: &ThemeStyle,
+        preserve_breaks: bool,
     ) -> Vec<Span<'static>> {
         let mut spans: Vec<Span<'static>> = Vec::new();
         let mut buf = String::new();
@@ -232,20 +259,40 @@ impl Renderer {
                     flush_buf(&mut buf, &mut spans, base);
                     match tag {
                         Tag::Emphasis => {
-                            spans.extend(self.collect_inline(events, &TagEnd::Emphasis, &self.italic));
+                            spans.extend(self.collect_inline_with_breaks(events, &TagEnd::Emphasis, &self.italic, preserve_breaks));
                         }
                         Tag::Strong => {
-                            spans.extend(self.collect_inline(events, &TagEnd::Strong, &self.bold));
+                            spans.extend(self.collect_inline_with_breaks(events, &TagEnd::Strong, &self.bold, preserve_breaks));
                         }
                         Tag::Strikethrough => {
-                            spans.extend(self.collect_inline(events, &TagEnd::Strikethrough, &self.strike));
+                            spans.extend(self.collect_inline_with_breaks(events, &TagEnd::Strikethrough, &self.strike, preserve_breaks));
                         }
-                        Tag::Link { .. } => {
-                            let mut child = self.collect_inline(events, &TagEnd::Link, &self.link);
+                        Tag::Link { ref dest_url, .. } => {
+                            let mut child = self.collect_inline_with_breaks(events, &TagEnd::Link, &self.link, preserve_breaks);
+                            if !dest_url.is_empty() {
+                                let url_style = Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::DIM);
+                                child.push(Span::styled(format!(" ─ {}", dest_url), url_style));
+                            }
                             spans.append(&mut child);
                         }
+                        Tag::Image { ref dest_url, .. } => {
+                            let child = self.collect_inline_with_breaks(events, &TagEnd::Image, &self.para, preserve_breaks);
+                            let icon = Span::styled(
+                                "🖼 ".to_string(),
+                                Style::default().fg(Color::DarkGray),
+                            );
+                            spans.push(icon);
+                            spans.extend(child);
+                            if !dest_url.is_empty() {
+                                let url_style = Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::DIM);
+                                spans.push(Span::styled(format!(" ─ {}", dest_url), url_style));
+                            }
+                        }
                         Tag::CodeBlock(_) | Tag::Paragraph | Tag::Heading { .. } => {
-                            // nested block inside inline (shouldn't happen, but just in case)
                             let _ = self.skip_to(events, &end_of(&tag));
                         }
                         _ => {}
@@ -263,7 +310,22 @@ impl Renderer {
                     spans.push(Span::styled(text.to_string(), self.code.as_style()));
                 }
                 Some(Event::SoftBreak) | Some(Event::HardBreak) => {
-                    buf.push(' ');
+                    if preserve_breaks {
+                        flush_buf(&mut buf, &mut spans, base);
+                        spans.push(Span::raw("\n"));
+                    } else {
+                        buf.push(' ');
+                    }
+                }
+                Some(Event::TaskListMarker(checked)) => {
+                    flush_buf(&mut buf, &mut spans, base);
+                    let icon = if checked { "☑" } else { "☐" };
+                    spans.push(Span::styled(
+                        icon.to_string(),
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    ));
                 }
                 None => break,
                 _ => {}
@@ -336,14 +398,14 @@ impl Renderer {
 
         // Header
         if !data.headers.is_empty() {
-            self.push_table_row(&data.headers, &col_widths, lines, raw, &b);
+            self.push_table_row(&data.headers, &col_widths, lines, raw, &b, &data.alignments);
             lines.push(self.table_border_line(&col_widths, "├", "┼", "┤", &b));
             raw.push(String::new());
         }
 
         // Data rows
         for row in &data.rows {
-            self.push_table_row(row, &col_widths, lines, raw, &b);
+            self.push_table_row(row, &col_widths, lines, raw, &b, &data.alignments);
         }
 
         // Bottom border
@@ -377,6 +439,7 @@ impl Renderer {
         lines: &mut Vec<Line<'static>>,
         raw: &mut Vec<String>,
         style: &Style,
+        alignments: &[Alignment],
     ) {
         let mut spans = vec![Span::styled("│".to_string(), *style)];
         let mut raw_text = String::new();
@@ -384,18 +447,35 @@ impl Renderer {
             let w = widths.get(i).copied().unwrap_or(3);
             let cell_width = cell_width(cell_spans);
             let pad = w.saturating_sub(cell_width);
+            let align = alignments.get(i).copied().unwrap_or(Alignment::None);
 
+            let left_pad = match align {
+                Alignment::Right => pad,
+                Alignment::Center => pad / 2,
+                _ => 0,
+            };
+            let right_pad = match align {
+                Alignment::Right => 0,
+                Alignment::Center => pad - pad / 2,
+                _ => pad,
+            };
+
+            if left_pad > 0 {
+                spans.push(Span::styled(" ".repeat(left_pad), Style::default()));
+            }
             spans.extend(cell_spans.iter().cloned());
-            // padding after content
-            if pad > 0 {
-                spans.push(Span::styled(" ".repeat(pad), Style::default()));
+            if right_pad > 0 {
+                spans.push(Span::styled(" ".repeat(right_pad), Style::default()));
             }
             spans.push(Span::styled(" │".to_string(), *style));
             raw_text.push(' ');
+            for _ in 0..left_pad {
+                raw_text.push(' ');
+            }
             for s in cell_spans {
                 raw_text.push_str(s.content.as_ref());
             }
-            raw_text.push_str(&" ".repeat(pad + 1));
+            raw_text.push_str(&" ".repeat(right_pad + 1));
         }
         raw.push(raw_text);
         lines.push(Line::from(spans));
@@ -430,6 +510,7 @@ impl Renderer {
 struct TableData {
     headers: Vec<Vec<Span<'static>>>,
     rows: Vec<Vec<Vec<Span<'static>>>>,
+    alignments: Vec<Alignment>,
 }
 
 impl ThemeStyle {
@@ -456,6 +537,59 @@ impl ThemeStyle {
         }
         s.add_modifier(mods)
     }
+}
+
+fn highlight_code(language: &str, code: &str, bg: Option<Color>) -> Vec<(Vec<Span<'static>>, String)> {
+    static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
+    static THEME: OnceLock<syntect::highlighting::Theme> = OnceLock::new();
+
+    let syntax_set = SYNTAX_SET.get_or_init(SyntaxSet::load_defaults_newlines);
+    let theme = THEME.get_or_init(|| {
+        let ts = ThemeSet::load_defaults();
+        ts.themes["base16-ocean.dark"].clone()
+    });
+
+    let syntax = syntax_set
+        .find_syntax_by_token(language)
+        .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
+
+    let mut highlighter = HighlightLines::new(syntax, theme);
+    let mut result = Vec::new();
+
+    for line in LinesWithEndings::from(code) {
+        let trimmed = line.trim_end_matches('\n').trim_end_matches('\r');
+        if trimmed.is_empty() && line.ends_with('\n') {
+            result.push((vec![Span::raw("\n")], String::new()));
+            continue;
+        }
+        let highlighted = highlighter.highlight_line(trimmed, syntax_set).unwrap();
+
+        let mut spans = Vec::new();
+        let mut raw_text = String::new();
+
+        for (style, text) in &highlighted {
+            let mut s = Style::default()
+                .fg(Color::Rgb(style.foreground.r, style.foreground.g, style.foreground.b));
+            if let Some(bg_color) = bg {
+                s = s.bg(bg_color);
+            }
+            if style.font_style.contains(syntect::highlighting::FontStyle::BOLD) {
+                s = s.add_modifier(Modifier::BOLD);
+            }
+            if style.font_style.contains(syntect::highlighting::FontStyle::ITALIC) {
+                s = s.add_modifier(Modifier::ITALIC);
+            }
+            if style.font_style.contains(syntect::highlighting::FontStyle::UNDERLINE) {
+                s = s.add_modifier(Modifier::UNDERLINED);
+            }
+            spans.push(Span::styled(text.to_string(), s));
+            raw_text.push_str(text);
+        }
+
+        result.push((spans, raw_text));
+    }
+
+    result
 }
 
 fn flush_buf(buf: &mut String, spans: &mut Vec<Span<'static>>, base: &ThemeStyle) {
@@ -534,6 +668,16 @@ mod tests {
         let (lines, raw) = render("Click [here](https://example.com)", &theme);
         assert!(raw[0].contains("Click here"));
         insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn renders_reference_link() {
+        let theme = Theme::default_dark();
+        let md = "Click [here][ref]\n\n[ref]: https://example.com";
+        let (lines, raw) = render(md, &theme);
+        assert!(raw[0].contains("Click here"));
+        let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(rendered.contains("example.com"), "URL should appear in: {rendered}");
     }
 
     #[test]
