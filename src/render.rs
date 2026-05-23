@@ -98,7 +98,7 @@ impl Renderer {
     }
 
     fn render_doc(&self, mut parser: Parser<'_>, lines: &mut Vec<Line<'static>>, raw: &mut Vec<String>) {
-        let mut list_counters: Vec<usize> = Vec::new();
+        let mut list_counters: Vec<(usize, bool)> = Vec::new();
         let mut in_table = false;
         let mut table_data: TableData = TableData::default();
 let mut needs_space = false;
@@ -167,27 +167,31 @@ Tag::CodeBlock(kind) => {
                         if needs_space {
                             raw.push(String::new());
                             lines.push(Line::from(vec![]));
-                            needs_space = false;
                         }
-                        list_counters.push(start.unwrap_or(1) as usize);
+list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                     }
                     Tag::Item => {
                         let depth = list_counters.len();
-                        if let Some(counter) = list_counters.last_mut() {
-                            let bullet = if depth == 1 {
-                                format!("{} {} ", BULLET_CHAR, self.bullet_prefix(*counter))
+                        if let Some((counter, is_ordered)) = list_counters.last_mut() {
+                            let indent = "  ".repeat(depth.saturating_sub(1));
+                            let marker = if *is_ordered {
+                                format!("{}{}. ", indent, *counter)
                             } else {
-                                format!("  {} {} ", BULLET_CHAR, self.bullet_prefix(*counter))
+                                format!("{}{} ", indent, BULLET_CHAR)
                             };
                             *counter += 1;
                             let prefix = Span::styled(
-                                bullet,
+                                marker,
                                 Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
                             );
-                            let mut item_spans = self.collect_inline(&mut parser, &TagEnd::Item, &self.para);
+                            let (mut item_spans, children) = self.collect_item_inline(&mut parser, &mut list_counters);
                             item_spans.insert(0, prefix);
                             raw_line(&item_spans, raw);
                             lines.push(Line::from(item_spans));
+                            for (child_spans, child_raw) in children {
+                                raw.push(child_raw);
+                                lines.push(Line::from(child_spans));
+                            }
                         }
                     }
                     Tag::Table(alignments) => {
@@ -537,12 +541,126 @@ Tag::CodeBlock(kind) => {
         lines.push(Line::from(spans));
     }
 
-    fn bullet_prefix(&self, counter: usize) -> String {
-        if counter == 0 {
-            String::new()
-        } else {
-            counter.to_string()
+    fn collect_item_inline(
+        &self,
+        events: &mut Parser<'_>,
+        list_counters: &mut Vec<(usize, bool)>,
+    ) -> (Vec<Span<'static>>, Vec<(Vec<Span<'static>>, String)>) {
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let mut children: Vec<(Vec<Span<'static>>, String)> = Vec::new();
+        let mut buf = String::new();
+        let base = &self.para;
+
+        loop {
+            match events.next() {
+                Some(Event::Start(tag)) => {
+                    flush_buf(&mut buf, &mut spans, base);
+                    match tag {
+                        Tag::Emphasis => {
+                            spans.extend(self.collect_inline(events, &TagEnd::Emphasis, &self.italic));
+                        }
+                        Tag::Strong => {
+                            spans.extend(self.collect_inline(events, &TagEnd::Strong, &self.bold));
+                        }
+                        Tag::Strikethrough => {
+                            spans.extend(self.collect_inline(events, &TagEnd::Strikethrough, &self.strike));
+                        }
+                        Tag::Link { ref dest_url, .. } => {
+                            let mut child = self.collect_inline(events, &TagEnd::Link, &self.link);
+                            if !dest_url.is_empty() {
+                                let url_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                                child.push(Span::styled(format!(" ─ {}", dest_url), url_style));
+                            }
+                            spans.append(&mut child);
+                        }
+                        Tag::Image { ref dest_url, .. } => {
+                            let child = self.collect_inline(events, &TagEnd::Image, base);
+                            let icon = Span::styled("🖼 ".to_string(), Style::default().fg(Color::DarkGray));
+                            spans.push(icon);
+                            spans.extend(child);
+                            if !dest_url.is_empty() {
+                                let url_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                                spans.push(Span::styled(format!(" ─ {}", dest_url), url_style));
+                            }
+                        }
+                        Tag::List(start) => {
+                            children.extend(self.render_nested_list(events, list_counters, start));
+                        }
+                        Tag::CodeBlock(_) | Tag::Paragraph | Tag::Heading { .. } => {
+                            let _ = self.skip_to(events, &end_of(&tag));
+                        }
+                        _ => {}
+                    }
+                }
+                Some(Event::End(tag_end)) if tag_end == TagEnd::Item => {
+                    flush_buf(&mut buf, &mut spans, base);
+                    break;
+                }
+                Some(Event::Text(text)) => {
+                    buf.push_str(&text);
+                }
+                Some(Event::Code(text)) => {
+                    flush_buf(&mut buf, &mut spans, base);
+                    spans.push(Span::styled(text.to_string(), self.code.as_style()));
+                }
+                Some(Event::SoftBreak) | Some(Event::HardBreak) => {
+                    buf.push(' ');
+                }
+                Some(Event::TaskListMarker(checked)) => {
+                    flush_buf(&mut buf, &mut spans, base);
+                    let icon = if checked { "☑" } else { "☐" };
+                    let color = if checked { Color::Green } else { Color::Red };
+                    spans.push(Span::styled(icon.to_string(), Style::default().fg(color).add_modifier(Modifier::BOLD)));
+                }
+                None => break,
+                _ => {}
+            }
         }
+
+        (spans, children)
+    }
+
+    fn render_nested_list(
+        &self,
+        events: &mut Parser<'_>,
+        list_counters: &mut Vec<(usize, bool)>,
+        start: Option<u64>,
+    ) -> Vec<(Vec<Span<'static>>, String)> {
+        let mut items: Vec<(Vec<Span<'static>>, String)> = Vec::new();
+        list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
+        loop {
+            match events.next() {
+                Some(Event::Start(Tag::Item)) => {
+                    let depth = list_counters.len();
+                    if let Some((counter, is_ordered)) = list_counters.last_mut() {
+                        let indent = "  ".repeat(depth.saturating_sub(1));
+                        let marker = if *is_ordered {
+                            format!("{}{}. ", indent, *counter)
+                        } else {
+                            format!("{}{} ", indent, BULLET_CHAR)
+                        };
+                        *counter += 1;
+                        let prefix = Span::styled(
+                            marker,
+                            Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
+                        );
+                        let (mut item_spans, grandchildren) = self.collect_item_inline(events, list_counters);
+                        item_spans.insert(0, prefix);
+                        let raw_text: String = item_spans.iter().map(|s| s.content.as_ref()).collect();
+                        items.push((item_spans, raw_text));
+                        for (child_spans, child_raw) in grandchildren {
+                            items.push((child_spans, child_raw));
+                        }
+                    }
+                }
+                Some(Event::End(TagEnd::List(_))) => {
+                    list_counters.pop();
+                    break;
+                }
+                _ => {}
+            }
+        }
+        items
     }
 
     fn skip_to(&self, events: &mut Parser<'_>, tag_end: &TagEnd) -> String {
@@ -691,7 +809,9 @@ fn end_of(tag: &Tag) -> TagEnd {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::theme::Theme;
+use crate::theme::Theme;
+
+type NestedItems = Vec<(Vec<Span<'static>>, String)>;
 
     #[test]
     fn renders_paragraph() {

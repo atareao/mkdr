@@ -1,8 +1,13 @@
 use std::process::Command;
 
+fn mdr_bin() -> String {
+    // CARGO_BIN_EXE_mdr is set automatically by cargo for integration tests
+    env!("CARGO_BIN_EXE_mdr").to_string()
+}
+
 #[test]
 fn test_cli_file_not_found() {
-    let output = Command::new(env!("CARGO_BIN_EXE_mdr"))
+    let output = Command::new(mdr_bin())
         .arg("nonexistent.md")
         .output()
         .expect("failed to run mdr");
@@ -13,7 +18,7 @@ fn test_cli_file_not_found() {
 
 #[test]
 fn test_cli_stdin_pipe() {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_mdr"))
+    let mut child = Command::new(mdr_bin())
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
@@ -26,13 +31,12 @@ fn test_cli_stdin_pipe() {
         stdin.write_all(b"# Hello\n\nWorld.\n").unwrap();
     }
 
-    // mdr enters raw mode - we just need to kill it quickly
     let _ = child.wait_with_output();
 }
 
 #[test]
 fn test_cli_version() {
-    let output = Command::new(env!("CARGO_BIN_EXE_mdr"))
+    let output = Command::new(mdr_bin())
         .arg("--version")
         .output()
         .expect("failed to run mdr");
@@ -43,7 +47,7 @@ fn test_cli_version() {
 
 #[test]
 fn test_cli_help() {
-    let output = Command::new(env!("CARGO_BIN_EXE_mdr"))
+    let output = Command::new(mdr_bin())
         .arg("--help")
         .output()
         .expect("failed to run mdr");
