@@ -25,6 +25,7 @@ heading3 = { fg = "green" }
 heading4 = { fg = "yellow" }
 heading5 = { fg = "light_gray" }
 heading6 = { fg = "light_gray" }
+link = { fg = "cyan", underline = true }
 table = { fg = "cyan" }
 bullet = { fg = "purple" }
 quote_mark = { fg = "green" }

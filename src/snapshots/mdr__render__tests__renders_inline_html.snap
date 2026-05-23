@@ -1,0 +1,7 @@
+---
+source: src/render.rs
+expression: lines
+---
+[
+    Line::from(Span::from("<div>hello</div>").fg(Color::Rgb(206, 145, 120)).bg(Color::Rgb(45, 45, 45))),
+]

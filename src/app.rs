@@ -9,10 +9,10 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Terminal;
-use termimad::MadSkin;
 
-use crate::ansi::{parse_ansi_line, strip_ansi};
 use crate::search::{find_next_match, find_prev_match, highlight_line, search_lines};
+use crate::theme::Theme;
+use crate::render;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum WrapMode {
@@ -49,6 +49,7 @@ pub enum Mode {
 pub struct App {
     lines: Vec<Line<'static>>,
     raw_lines: Vec<String>,
+    theme: Theme,
     scroll: usize,
     h_scroll: u16,
     max_scroll: usize,
@@ -62,27 +63,27 @@ pub struct App {
     show_status: bool,
     show_line_numbers: bool,
     wrap_mode: WrapMode,
-    skin: MadSkin,
     follow: bool,
     last_modified: Option<SystemTime>,
     content: String,
-    input_mode_prompt: String,
 }
 
 impl App {
+    #[expect(clippy::too_many_arguments)]
     pub fn new(
         files: Vec<PathBuf>,
         follow: bool,
         wrap_mode: WrapMode,
         line_numbers: bool,
         show_status: bool,
-        skin: MadSkin,
+        theme: Theme,
         start_line: usize,
         content_from_stdin: Option<String>,
     ) -> Self {
         let mut app = App {
             lines: Vec::new(),
             raw_lines: Vec::new(),
+            theme,
             scroll: 0,
             h_scroll: 0,
             max_scroll: 0,
@@ -96,11 +97,9 @@ impl App {
             show_status,
             show_line_numbers: line_numbers,
             wrap_mode,
-            skin,
             follow,
             last_modified: None,
             content: String::new(),
-            input_mode_prompt: String::new(),
         };
 
         if let Some(stdin_content) = content_from_stdin {
@@ -139,14 +138,9 @@ impl App {
     }
 
     fn render_content(&mut self) {
-        let styled = self.skin.text(&self.content, None);
-        let styled_text = format!("{}", styled);
-
-        self.raw_lines = styled_text.lines().map(|s| strip_ansi(s)).collect();
-        self.lines = styled_text
-            .lines()
-            .map(|s| parse_ansi_line(s))
-            .collect();
+        let (styled_lines, raw) = render::render(&self.content, &self.theme);
+        self.lines = styled_lines;
+        self.raw_lines = raw;
         self.max_scroll = self.lines.len().saturating_sub(1);
         self.scroll = self.scroll.min(self.max_scroll);
     }
@@ -175,15 +169,15 @@ impl App {
                 self.render_frame(f);
             })?;
 
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    match &self.mode {
-                        Mode::Normal => self.handle_normal_key(key.code),
-                        Mode::SearchForward | Mode::SearchBackward => {
-                            self.handle_search_key(key.code);
-                        }
-                        Mode::GoToLine => self.handle_goto_key(key.code),
+            if let Event::Key(key) = event::read()?
+                && key.kind == KeyEventKind::Press
+            {
+                match &self.mode {
+                    Mode::Normal => self.handle_normal_key(key.code),
+                    Mode::SearchForward | Mode::SearchBackward => {
+                        self.handle_search_key(key.code);
                     }
+                    Mode::GoToLine => self.handle_goto_key(key.code),
                 }
             }
         }
@@ -194,11 +188,11 @@ impl App {
             return;
         }
         let path = &self.files[self.file_index];
-        if let Ok(modified) = std::fs::metadata(path).and_then(|m| m.modified()) {
-            if self.last_modified.map_or(true, |lm| lm != modified) {
-                self.last_modified = Some(modified);
-                self.reload_current_file();
-            }
+        if let Ok(modified) = std::fs::metadata(path).and_then(|m| m.modified())
+            && self.last_modified != Some(modified)
+        {
+            self.last_modified = Some(modified);
+            self.reload_current_file();
         }
     }
 
@@ -370,17 +364,14 @@ impl App {
             KeyCode::Char('/') => {
                 self.mode = Mode::SearchForward;
                 self.input_buf.clear();
-                self.input_mode_prompt = "/".to_string();
             }
             KeyCode::Char('?') => {
                 self.mode = Mode::SearchBackward;
                 self.input_buf.clear();
-                self.input_mode_prompt = "?".to_string();
             }
             KeyCode::Char(':') => {
                 self.mode = Mode::GoToLine;
                 self.input_buf.clear();
-                self.input_mode_prompt = ":".to_string();
             }
             KeyCode::Char('n') => {
                 if !self.search_results.is_empty() {

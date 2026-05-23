@@ -12,7 +12,9 @@ pub fn load_config() -> Config {
     let config_dir = dirs::config_dir();
     let config_path = match config_dir {
         Some(mut d) => {
-            d.push("markrender");
+            d.push("mdr");
+            let themes_dir = d.join("themes");
+            let _ = std::fs::create_dir_all(&themes_dir);
             d.push("config.toml");
             d
         }

@@ -1,0 +1,10 @@
+---
+source: src/render.rs
+expression: lines
+---
+[
+    Line::from_iter([
+        Span::from("Click ").fg(Color::Rgb(212, 212, 212)),
+        Span::from("here").fg(Color::Rgb(86, 156, 214)).underlined(),
+    ]),
+]

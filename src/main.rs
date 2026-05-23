@@ -1,21 +1,23 @@
 use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
 
+use clap::CommandFactory;
 use clap::Parser;
+use clap_complete::{generate, Shell};
 use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
-mod ansi;
 mod app;
 mod config;
+mod render;
 mod search;
 mod theme;
 
 use app::{App, WrapMode};
 use config::load_config;
-use termimad::MadSkin;
+use theme::Theme;
 
 #[derive(Parser)]
 #[command(version, about = "TUI markdown renderer with paging",
@@ -23,7 +25,7 @@ use termimad::MadSkin;
 
 Built-in themes: ayu_dark, ayu_light, ayu_mirage, catppuccin_mocha, dracula, gruvbox_dark, nord, onedark, solarized_light, tokyonight
 
-User themes: place .toml files in ~/.config/markrender/themes/")]
+User themes: place .toml files in ~/.config/mdr/themes/")]
 struct Args {
     /// Markdown file(s) to display (reads from stdin if omitted)
     files: Vec<PathBuf>,
@@ -51,10 +53,21 @@ struct Args {
     /// Follow file changes (watch mode)
     #[arg(short = 'f', long = "follow")]
     follow: bool,
+
+    /// Generate shell completions
+    #[arg(long = "completions", value_enum)]
+    completions: Option<Shell>,
 }
 
 fn main() {
     let cli_args = Args::parse();
+
+    if let Some(shell) = cli_args.completions {
+        let mut cmd = Args::command();
+        generate(shell, &mut cmd, "mdr", &mut io::stdout());
+        return;
+    }
+
     let config = load_config();
 
     let wrap_mode = {
@@ -73,18 +86,16 @@ fn main() {
         cli_args.theme.clone()
     };
 
-    let skin = match theme_name.as_str() {
-        "auto" => MadSkin::default(),
-        "light" => MadSkin::default_light(),
-        "dark" => MadSkin::default_dark(),
+    let theme = match theme_name.as_str() {
+        "auto" | "dark" => Theme::default_dark(),
+        "light" => Theme::default_light(),
         name => {
-            if let Some(theme) = theme::Theme::load(name) {
-                let mut skin = MadSkin::default();
-                theme.apply_to_skin(&mut skin);
-                skin
-            } else {
-                eprintln!("Warning: theme '{}' not found, using default", name);
-                MadSkin::default()
+            match Theme::load(name) {
+                Some(t) => t,
+                None => {
+                    eprintln!("Warning: theme '{}' not found, using default dark", name);
+                    Theme::default_dark()
+                }
             }
         }
     };
@@ -120,7 +131,7 @@ fn main() {
         wrap_mode,
         line_numbers,
         show_status,
-        skin,
+        theme,
         cli_args.line,
         stdin_content,
     );

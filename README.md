@@ -1,8 +1,8 @@
-# markrender
+# mdr
 
-[![release](https://github.com/atareao/markrender/actions/workflows/release.yml/badge.svg)](https://github.com/atareao/markrender/actions/workflows/release.yml)
+[![release](https://github.com/atareao/mdr/actions/workflows/release.yml/badge.svg)](https://github.com/atareao/mdr/actions/workflows/release.yml)
 
-TUI markdown renderer with paging, search, theming, and multi-file support. Built with [ratatui](https://github.com/ratatui/ratatui) and [termimad](https://github.com/Canop/termimad).
+TUI markdown renderer with paging, search, theming, and multi-file support.
 
 ```bash
 cargo run -- README.md
@@ -10,7 +10,7 @@ cargo run -- README.md
 
 ## Features
 
-- **Markdown rendering** via termimad with full ANSI styling
+- **Markdown rendering** with full theme support (bold, italic, links, tables, code, headings)
 - **Vim-style navigation** (`j`/`k`, `b`/`f`, `g`/`G`, `←`/`→`)
 - **Incremental search** (`/` forward, `?` backward, `n`/`N` next/prev)
 - **Go to line** (`:` + number + `Enter`)
@@ -18,14 +18,14 @@ cargo run -- README.md
 - **Line numbers** toggle (`-n`)
 - **Multiple files** — pass several files, navigate with `[` / `]`
 - **Watch mode** (`-f`) — auto-reloads on file change
-- **Stdin pipe** — `cat file.md | markrender`
-- **10 built-in themes** + user themes in `~/.config/markrender/themes/`
-- **Config file** at `~/.config/markrender/config.toml`
+- **Stdin pipe** — `cat file.md | mdr`
+- **10 built-in themes** + user themes in `~/.config/mdr/themes/`
+- **Config file** at `~/.config/mdr/config.toml`
 
 ## Usage
 
 ```
-markrender [OPTIONS] [FILES]...
+mdr [OPTIONS] [FILES]...
 ```
 
 | Option | Default | Description |
@@ -39,11 +39,11 @@ markrender [OPTIONS] [FILES]...
 | `-f`, `--follow` | `false` | Watch file for changes |
 
 ```bash
-markrender doc.md
-markrender -n -t nord doc.md
-cat README.md | markrender
-markrender -f -t catppuccin_mocha doc.md
-markrender -w none chapter1.md chapter2.md chapter3.md
+mdr doc.md
+mdr -n -t nord doc.md
+cat README.md | mdr
+mdr -f -t catppuccin_mocha doc.md
+mdr -w none chapter1.md chapter2.md chapter3.md
 ```
 
 ## Keybindings
@@ -74,16 +74,16 @@ In search and go-to-line modes: `Enter` to confirm, `Esc` to cancel, `Backspace`
 `ayu_dark` · `ayu_light` · `ayu_mirage` · `catppuccin_mocha` · `dracula` · `gruvbox_dark` · `nord` · `onedark` · `solarized_light` · `tokyonight`
 
 ```bash
-markrender -t nord doc.md
-markrender -t ayu_mirage doc.md
+mdr -t nord doc.md
+mdr -t ayu_mirage doc.md
 ```
 
 ### User themes
 
-Place `.toml` files in `~/.config/markrender/themes/`:
+Place `.toml` files in `~/.config/mdr/themes/`:
 
 ```toml
-# ~/.config/markrender/themes/my_theme.toml
+# ~/.config/mdr/themes/my_theme.toml
 [colors]
 text = "#abb2bf"
 bg = "#282c34"
@@ -95,13 +95,13 @@ heading1 = { fg = "blue", bold = true }
 inline_code = { fg = "#ce9178", bg = "#2d2d2d" }
 ```
 
-Style keys: `paragraph`, `bold`, `italic`, `strikeout`, `inline_code`, `code_block`, `heading1`–`heading6`, `table`, `ellipsis`, `bullet`, `quote_mark`, `horizontal_rule`.
+Style keys: `paragraph`, `bold`, `italic`, `strikeout`, `inline_code`, `code_block`, `link`, `heading1`–`heading6`, `table`, `ellipsis`, `bullet`, `quote_mark`, `horizontal_rule`.
 
 Style fields: `fg` (hex or color reference), `bg`, `bold`, `italic`, `underline`, `strikethrough`.
 
 ## Configuration
 
-`~/.config/markrender/config.toml`:
+`~/.config/mdr/config.toml`:
 
 ```toml
 wrap = "word"
@@ -114,15 +114,15 @@ CLI flags override config values. All fields optional.
 
 ## Download
 
-Pre-built binaries for each [release](https://github.com/atareao/markrender/releases):
+Pre-built binaries for each [release](https://github.com/atareao/mdr/releases):
 
 | Platform | Architecture | File |
 |---|---|---|
-| Linux | x86_64 | `markrender-x86_64-unknown-linux-gnu.tar.gz` |
-| Linux | ARM64 | `markrender-aarch64-unknown-linux-gnu.tar.gz` |
-| macOS | Intel | `markrender-x86_64-apple-darwin.tar.gz` |
-| macOS | Apple Silicon | `markrender-aarch64-apple-darwin.tar.gz` |
-| Windows | x86_64 | `markrender-x86_64-pc-windows-msvc.zip` |
+| Linux | x86_64 | `mdr-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux | ARM64 | `mdr-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS | Intel | `mdr-x86_64-apple-darwin.tar.gz` |
+| macOS | Apple Silicon | `mdr-aarch64-apple-darwin.tar.gz` |
+| Windows | x86_64 | `mdr-x86_64-pc-windows-msvc.zip` |
 
 Trigger a release by pushing a tag:
 
@@ -148,4 +148,4 @@ MIT — see [LICENSE](LICENSE).
 
 ## Dependencies
 
-[clap](https://crates.io/crates/clap) · [crossterm](https://crates.io/crates/crossterm) · [dirs](https://crates.io/crates/dirs) · [ratatui](https://crates.io/crates/ratatui) · [serde](https://crates.io/crates/serde) · [termimad](https://crates.io/crates/termimad) · [toml](https://crates.io/crates/toml)
+[clap](https://crates.io/crates/clap) · [crossterm](https://crates.io/crates/crossterm) · [dirs](https://crates.io/crates/dirs) · [pulldown-cmark](https://crates.io/crates/pulldown-cmark) · [ratatui](https://crates.io/crates/ratatui) · [serde](https://crates.io/crates/serde) · [toml](https://crates.io/crates/toml) · [unicode-width](https://crates.io/crates/unicode-width)

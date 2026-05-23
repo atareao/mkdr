@@ -1,0 +1,9 @@
+---
+source: src/render.rs
+expression: lines
+---
+[
+    Line::from(Span::from("H1").fg(Color::Rgb(244, 71, 71)).bold()),
+    Line::from(Span::from("H2").fg(Color::Rgb(86, 156, 214)).bold()),
+    Line::from(Span::from("H3").fg(Color::Rgb(78, 201, 176)).bold()),
+]

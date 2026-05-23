@@ -1,0 +1,14 @@
+---
+source: src/render.rs
+expression: lines
+---
+[
+    Line::from_iter([
+        Span::from("• 1 ").fg(Color::Rgb(86, 156, 214)),
+        Span::from("item1").fg(Color::Rgb(212, 212, 212)),
+    ]),
+    Line::from_iter([
+        Span::from("• 2 ").fg(Color::Rgb(86, 156, 214)),
+        Span::from("item2").fg(Color::Rgb(212, 212, 212)),
+    ]),
+]

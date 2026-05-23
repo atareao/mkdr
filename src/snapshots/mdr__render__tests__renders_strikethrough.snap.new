@@ -1,0 +1,11 @@
+---
+source: src/render.rs
+assertion_line: 593
+expression: lines
+---
+[
+    Line::from_iter([
+        Span::from("Hello ").fg(Color::Rgb(212, 212, 212)),
+        Span::from("world").fg(Color::Rgb(128, 128, 128)),
+    ]),
+]

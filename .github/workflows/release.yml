@@ -49,10 +49,10 @@ jobs:
       - name: Prepare archive
         shell: bash
         run: |
-          BIN="target/${{ matrix.target }}/release/markrender${{ matrix.ext }}"
-          ARCHIVE_NAME="markrender${{ matrix.ext }}"
+          BIN="target/${{ matrix.target }}/release/mdr${{ matrix.ext }}"
+          ARCHIVE_NAME="mdr${{ matrix.ext }}"
           cp "$BIN" "$ARCHIVE_NAME"
-          PKG="markrender-${{ matrix.target }}"
+          PKG="mdr-${{ matrix.target }}"
           if [ "${{ matrix.archive }}" = "tar.gz" ]; then
             tar czf "$PKG.tar.gz" "$ARCHIVE_NAME"
             echo "ARTIFACT=$PKG.tar.gz" >> $GITHUB_ENV
@@ -64,7 +64,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: markrender-${{ matrix.target }}
+          name: mdr-${{ matrix.target }}
           path: ${{ env.ARTIFACT }}
 
   release:
@@ -73,13 +73,13 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: markrender-*
+          pattern: mdr-*
           merge-multiple: true
 
       - name: Generate release body
         run: |
           cat > notes.md <<'EOF'
-          ## markrender
+          ## mdr
 
           ### Downloads
 
@@ -90,14 +90,14 @@ jobs:
             [[ "$f" == *.md ]] && continue
             [[ "$f" == *.txt ]] && continue
             [ -f "$f" ] || continue
-            arch=$(echo "$f" | sed 's/^markrender-//; s/\.tar\.gz$//; s/\.zip$//')
+            arch=$(echo "$f" | sed 's/^mdr-//; s/\.tar\.gz$//; s/\.zip$//')
             echo "| \`$arch\` | \`$f\` |" >> notes.md
           done
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: markrender ${{ github.ref_name }}
+          name: mdr ${{ github.ref_name }}
           body_path: notes.md
           files: |
             *.tar.gz

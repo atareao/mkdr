@@ -1,0 +1,11 @@
+---
+source: src/render.rs
+expression: lines
+---
+[
+    Line::from_iter([
+        Span::from("bold").fg(Color::Rgb(255, 255, 255)).bold(),
+        Span::from(" and ").fg(Color::Rgb(212, 212, 212)),
+        Span::from("italic").fg(Color::Rgb(230, 180, 80)).italic(),
+    ]),
+]
