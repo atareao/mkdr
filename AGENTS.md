@@ -34,7 +34,7 @@ No tests yet. Test structure should follow convention: `cargo test` runs all. Na
 Git Flow — see [GIT_FLOW.md](GIT_FLOW.md) for full workflow.
 
 - `main` — production (merge aquí = release automático)
-- `develop` — integración de features
+- `development` — integración de features
 - `feature/*` — ramas de trabajo
 - `hotfix/*` — correcciones urgentes desde main
 
