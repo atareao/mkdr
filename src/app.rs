@@ -13,7 +13,7 @@ use ratatui::Terminal;
 
 use crate::search::{find_next_match, find_prev_match, highlight_line, search_lines};
 use crate::theme::Theme;
-use crate::render::{self, WikiLink};
+use crate::render::{self, LinkItem, WikiLink};
 
 /// How text wrapping behaves in the TUI viewport.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -77,6 +77,7 @@ struct RenderedContent {
     lines: Vec<Line<'static>>,
     raw_lines: Vec<String>,
     wiki_links: Vec<Vec<WikiLink>>,
+    links: Vec<Vec<LinkItem>>,
     content: String,
     content_lower_lines: Vec<String>,
     display_cache: Option<Vec<Line<'static>>>,
@@ -140,6 +141,7 @@ impl App {
                 lines: Vec::new(),
                 raw_lines: Vec::new(),
                 wiki_links: Vec::new(),
+                links: Vec::new(),
                 content: String::new(),
                 content_lower_lines: Vec::new(),
                 display_cache: None,
@@ -232,10 +234,11 @@ impl App {
     }
 
     fn render_content(&mut self) {
-        let (styled_lines, raw, wiki_links) = render::render(&self.rendered.content, &self.theme);
+        let (styled_lines, raw, wiki_links, links) = render::render(&self.rendered.content, &self.theme);
         self.rendered.lines = styled_lines;
         self.rendered.raw_lines = raw;
         self.rendered.wiki_links = wiki_links;
+        self.rendered.links = links;
         self.rendered.content_lower_lines = self.rendered.content.lines().map(str::to_lowercase).collect();
         self.view.max_scroll = self.rendered.lines.len().saturating_sub(1);
         self.view.scroll = self.view.scroll.min(self.view.max_scroll);
@@ -749,10 +752,29 @@ impl App {
     }
 
     fn follow_wiki_link(&mut self) {
-        let links = match self.rendered.wiki_links.get(self.view.cursor_line) {
+        let line = self.view.cursor_line;
+
+        // Check for external links (web / image) on this line
+        if let Some(items) = self.rendered.links.get(line) {
+            if let Some(item) = items.iter().rfind(|i| i.col <= self.view.cursor_col as usize) {
+                let action = match item.kind {
+                    crate::render::LinkKind::Web => "browser",
+                    crate::render::LinkKind::Image => "image viewer",
+                };
+                if open::that(&item.url).is_ok() {
+                    self.status_message = Some(format!("Opened in {}", action));
+                } else {
+                    self.status_message = Some(format!("Failed to open: {}", item.url));
+                }
+                return;
+            }
+        }
+
+        // Fall back to wiki link navigation
+        let links = match self.rendered.wiki_links.get(line) {
             Some(l) if !l.is_empty() => l,
             _ => {
-                self.status_message = Some("No wiki link on this line".to_string());
+                self.status_message = Some("No link on this line".to_string());
                 return;
             }
         };
