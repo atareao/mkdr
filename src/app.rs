@@ -13,7 +13,7 @@ use ratatui::Terminal;
 
 use crate::search::{find_next_match, find_prev_match, highlight_line, search_lines};
 use crate::theme::Theme;
-use crate::render;
+use crate::render::{self, WikiLink};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum WrapMode {
@@ -52,6 +52,9 @@ pub enum Mode {
 pub struct App {
     lines: Vec<Line<'static>>,
     raw_lines: Vec<String>,
+    wiki_links: Vec<Vec<WikiLink>>,
+    parent_dir: Option<PathBuf>,
+    status_message: Option<String>,
     theme: Theme,
     scroll: usize,
     h_scroll: u16,
@@ -91,6 +94,9 @@ impl App {
         let mut app = App {
             lines: Vec::new(),
             raw_lines: Vec::new(),
+            wiki_links: Vec::new(),
+            parent_dir: None,
+            status_message: None,
             theme,
             scroll: 0,
             h_scroll: 0,
@@ -136,6 +142,7 @@ impl App {
             return;
         }
         let path = &self.files[self.file_index];
+        self.parent_dir = path.parent().map(|p| p.to_path_buf());
         self.content = std::fs::read_to_string(path).unwrap_or_default();
         self.last_modified = std::fs::metadata(path).ok().and_then(|m| m.modified().ok());
         self.render_content();
@@ -151,9 +158,10 @@ impl App {
     }
 
     fn render_content(&mut self) {
-        let (styled_lines, raw) = render::render(&self.content, &self.theme);
+        let (styled_lines, raw, wiki_links) = render::render(&self.content, &self.theme);
         self.lines = styled_lines;
         self.raw_lines = raw;
+        self.wiki_links = wiki_links;
         self.max_scroll = self.lines.len().saturating_sub(1);
         self.scroll = self.scroll.min(self.max_scroll);
     }
@@ -318,6 +326,16 @@ impl App {
                 .add_modifier(Modifier::BOLD),
         )];
 
+        if let Some(msg) = &self.status_message {
+            left_spans.push(Span::styled(
+                format!(" ⚠ {} ", msg),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .bg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
+            ));
+        }
+
         match &self.mode {
             Mode::SearchForward => {
                 let prompt = format!(" /{}_ ", self.input_buf);
@@ -357,6 +375,8 @@ impl App {
     }
 
     fn handle_normal_key(&mut self, code: KeyCode) {
+        self.status_message = None;
+
         if self.expecting_bookmark_set {
             self.expecting_bookmark_set = false;
             if let KeyCode::Char(c) = code
@@ -472,8 +492,62 @@ impl App {
             KeyCode::Char('\'') => {
                 self.expecting_bookmark_jump = true;
             }
+            KeyCode::Enter => {
+                self.follow_wiki_link();
+            }
             _ => {}
         }
+    }
+
+    fn follow_wiki_link(&mut self) {
+        let links = match self.wiki_links.get(self.scroll) {
+            Some(l) if !l.is_empty() => l,
+            _ => {
+                self.status_message = Some("No wiki link on this line".to_string());
+                return;
+            }
+        };
+        let h = self.h_scroll as usize;
+        let link = links.iter()
+            .find(|l| l.col >= h)
+            .unwrap_or(&links[0]);
+        let target_path = if let Some(parent) = &self.parent_dir {
+            let mut p = parent.join(&link.target);
+            if p.extension().is_none() {
+                p.set_extension("md");
+                if !p.exists() {
+                    // Fall back to extensionless path
+                    p = parent.join(&link.target);
+                }
+            }
+            p
+        } else {
+            let mut p = PathBuf::from(&link.target);
+            if p.extension().is_none() {
+                p.set_extension("md");
+                if !p.exists() {
+                    p = PathBuf::from(&link.target);
+                }
+            }
+            p
+        };
+        if !target_path.exists() {
+            self.status_message = Some(format!("File not found: {}", target_path.display()));
+            return;
+        }
+        // Replace current file with the wiki link target
+        if !self.files.is_empty() {
+            self.files[self.file_index] = target_path;
+        } else {
+            self.files.push(target_path);
+            self.file_index = 0;
+        }
+        self.scroll = 0;
+        self.h_scroll = 0;
+        self.search_idx = None;
+        self.search_query.clear();
+        self.search_results.clear();
+        self.load_current_file();
     }
 
     fn handle_search_key(&mut self, code: KeyCode) {
