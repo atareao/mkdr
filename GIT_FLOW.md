@@ -94,7 +94,14 @@ El formato de los mensajes determina el bump automático:
 
 Añadir `!` después del prefijo para breaking changes: `feat!:` o `fix!:`.
 
-## Herramientas
+## Protección de ramas
+
+Configurado vía GitHub API:
+
+| Rama | Push directo | Status checks | Notas |
+|---|---|---|---|
+| `main` | Solo admins y GitHub Actions | ✅ `test` (strict) | Merge solo por PR, CI obligatorio |
+| `develop` | Permitido | ✅ `test` | — |
 
 ### vampus
 
