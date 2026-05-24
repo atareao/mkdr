@@ -7,8 +7,8 @@ Este proyecto sigue **Git Flow** con versionado semántico automático.
 | Rama | Propósito | Base |
 |---|---|---|
 | `main` | Producción. Cada merge aquí dispara una release automática. | — |
-| `development` | Integración de features en curso. | `main` |
-| `feature/*` | Nuevas funcionalidades. | `development` |
+| `develop` | Integración de features en curso. | `main` |
+| `feature/*` | Nuevas funcionalidades. | `develop` |
 | `hotfix/*` | Correcciones urgentes a producción. | `main` |
 
 ## Flujo diario
@@ -16,9 +16,9 @@ Este proyecto sigue **Git Flow** con versionado semántico automático.
 ### Features
 
 ```bash
-# 1. Parte de development
-git checkout development
-git pull origin development
+# 1. Parte de develop
+git checkout develop
+git pull origin develop
 
 # 2. Crea rama feature
 git checkout -b feature/mi-feature
@@ -29,7 +29,7 @@ git commit -m "fix: header overflow on mobile"
 git commit -m "refactor: extract theme parser"
 #  ¡NO version bump! Eso lo hace CI automáticamente.
 
-# 4. PR: feature/mi-feature → development
+# 4. PR: feature/mi-feature → develop
 git push origin feature/mi-feature
 # Crear Pull Request en GitHub
 ```
@@ -51,17 +51,17 @@ git commit -m "fix: crash on empty file"
 git push origin hotfix/arreglo-critico
 # Crear Pull Request en GitHub
 
-# 5. Después del merge, sincronizar development
-git checkout development
+# 5. Después del merge, sincronizar develop
+git checkout develop
 git merge main
-git push origin development
+git push origin develop
 ```
 
 ### Releases
 
 ```bash
-# 1. Cuando development está listo para producción
-#    Crear PR: development → main
+# 1. Cuando develop está listo para producción
+#    Crear PR: develop → main
 
 # 2. Al mergear el PR en main, CI automáticamente:
 #    a) Detecta si el bump es patch/minor/major según conventional commits
@@ -101,7 +101,7 @@ Configurado vía GitHub API:
 | Rama | Push directo | Status checks | Notas |
 |---|---|---|---|
 | `main` | Solo admins y GitHub Actions | ✅ `test` (strict) | Merge solo por PR, CI obligatorio |
-| `development` | Permitido | ✅ `test` | — |
+| `develop` | Permitido | ✅ `test` | — |
 
 ### vampus
 
@@ -143,12 +143,12 @@ Compila para 5 targets, genera shell completions, crea GitHub Release.
 ```
 main   ──hotfix──●────────────●────────────────●
                  \            /                /
-development ──────────●──●──●────●──●──●──●────────●
+develop ──────────●──●──●────●──●──●──●────────●
                   \ /        \   /
 feature  ──────────●  feature ──●
                   feature/foo   feature/bar
 
-● = merge a development (PR normal)
+● = merge a develop (PR normal)
 ● = merge a main (release auto)
 ```
 
@@ -160,11 +160,11 @@ No. El CI lo hace automáticamente al mergear a main. Solo preocúpate de escrib
 **¿Qué pasa si necesito un release sin cambios de código?**  
 Por ejemplo, para re-ejecutar CI. No debería ocurrir, pero si es necesario, puedes crear un commit vacío en main con cualquier mensaje que no empiece por "chore: release".
 
-**¿Cómo sincronizo development con main después de un hotfix?**  
+**¿Cómo sincronizo develop con main después de un hotfix?**  
 ```bash
-git checkout development
+git checkout develop
 git merge main
-git push origin development
+git push origin develop
 ```
 
 **¿Dónde se configura la versión actual?**  
