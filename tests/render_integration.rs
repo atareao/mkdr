@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::process::Command;
 
 fn mdr_bin() -> String {
@@ -27,7 +28,6 @@ fn test_cli_stdin_pipe() {
 
     {
         let stdin = child.stdin.as_mut().unwrap();
-        use std::io::Write;
         stdin.write_all(b"# Hello\n\nWorld.\n").unwrap();
     }
 

@@ -149,3 +149,11 @@ MIT — see [LICENSE](LICENSE).
 ## Dependencies
 
 [clap](https://crates.io/crates/clap) · [crossterm](https://crates.io/crates/crossterm) · [dirs](https://crates.io/crates/dirs) · [pulldown-cmark](https://crates.io/crates/pulldown-cmark) · [ratatui](https://crates.io/crates/ratatui) · [serde](https://crates.io/crates/serde) · [toml](https://crates.io/crates/toml) · [unicode-width](https://crates.io/crates/unicode-width)
+
+## Roadmap
+
+- **`clap_complete` as optional dependency** — only used for `--completions`; gate behind a Cargo feature flag
+- **Integration tests for navigation** — add tests for keyboard/mode logic (requires mock terminal or extracted state machine)
+- **Wiki-link navigation within multi-file sessions** — improve file-history UX (backtrack across multiple hops)
+- **Configurable horizontal rule width** — use terminal width instead of fixed 80 columns
+- **Blockquote colour theming** — expose quote-depth colours in the theme file instead of hardcoded palette

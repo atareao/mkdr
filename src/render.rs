@@ -12,12 +12,22 @@ use crate::theme::Theme;
 
 const BULLET_CHAR: char = '•';
 const QUOTE_CHAR: char = '▐';
+const RULE_WIDTH: usize = 80;
+const QUOTE_COLORS: [Color; 3] = [
+    Color::Rgb(106, 153, 85),
+    Color::Rgb(86, 156, 214),
+    Color::Rgb(212, 71, 71),
+];
 
+/// A parsed wiki link `[[target]]` or `[[target|Title]]`.
 #[derive(Debug, Clone)]
 pub struct WikiLink {
+    /// The link target (file path or identifier)
     pub target: String,
+    /// Display title (same as target if no pipe syntax used)
     #[allow(dead_code)]
     pub title: String,
+    /// Column offset where the link starts on its line
     pub col: usize,
 }
 
@@ -115,6 +125,9 @@ fn strip_frontmatter(content: &str) -> &str {
     content
 }
 
+/// Parse markdown `content` and produce styled lines, raw text, and wiki link metadata.
+///
+/// Returns `(styled_lines, raw_lines, wiki_links_per_line)`.
 pub fn render(content: &str, theme: &Theme) -> (Vec<Line<'static>>, Vec<String>, Vec<Vec<WikiLink>>) {
     let content = strip_frontmatter(content);
     let processed = preprocess_wiki_links(content);
@@ -358,8 +371,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                             line_groups.push(Vec::new());
                             link_groups.push(Vec::new());
                         }
-                        let colors = [Color::Rgb(106, 153, 85), Color::Rgb(86, 156, 214), Color::Rgb(212, 71, 71)];
-                        let quote_color = self.quote_mark.unwrap_or(colors[(quote_depth - 1) % colors.len()]);
+                        let quote_color = self.quote_mark.unwrap_or(QUOTE_COLORS[(quote_depth - 1) % QUOTE_COLORS.len()]);
                         let mark_style = Style::default().fg(quote_color);
                         for (gi, group) in line_groups.iter().enumerate() {
                             raw_line(group, raw);
@@ -410,7 +422,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                         }
                     raw.push(String::new());
                     lines.push(Line::from(Span::styled(
-                        "─".repeat(80),
+                        "─".repeat(RULE_WIDTH),
                         Style::default().fg(self.rule.unwrap_or(Color::DarkGray)),
                     )));
                     wiki_links.push(Vec::new());
@@ -478,8 +490,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                         Tag::Link { ref dest_url, .. } => {
                             let link_col = col;
                             let mut child = self.collect_inline_with_breaks(events, &TagEnd::Link, &self.link, preserve_breaks, wiki_links);
-                            if dest_url.starts_with("wikilink://") {
-                                let target = &dest_url["wikilink://".len()..];
+                            if let Some(target) = dest_url.strip_prefix("wikilink://") {
                                 let title_text: String = child.iter().map(|s| s.content.as_ref()).collect();
                                 wiki_links.push(WikiLink {
                                     target: target.to_string(),
@@ -665,6 +676,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
         Line::from(spans)
     }
 
+    #[expect(clippy::too_many_arguments)]
     fn push_table_row(
         &self,
         cells: &[Vec<Span<'static>>],
@@ -699,7 +711,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
             }
             for s in cell_spans {
                 let span = if is_header {
-                    let style = s.style.clone().add_modifier(Modifier::BOLD);
+                    let style = s.style.add_modifier(Modifier::BOLD);
                     Span::styled(s.content.clone(), style)
                 } else {
                     s.clone()
@@ -723,6 +735,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
         lines.push(Line::from(spans));
     }
 
+    #[expect(clippy::type_complexity)]
     fn collect_item_inline(
         &self,
         events: &mut Parser<'_>,
@@ -764,8 +777,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                         Tag::Link { ref dest_url, .. } => {
                             let link_col = col;
                             let mut child = self.collect_inline(events, &TagEnd::Link, &self.link, &mut wiki_links);
-                            if dest_url.starts_with("wikilink://") {
-                                let target = &dest_url["wikilink://".len()..];
+                            if let Some(target) = dest_url.strip_prefix("wikilink://") {
                                 let title_text: String = child.iter().map(|s| s.content.as_ref()).collect();
                                 wiki_links.push(WikiLink {
                                     target: target.to_string(),
@@ -812,7 +824,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                         _ => {}
                     }
                 }
-                Some(Event::End(tag_end)) if tag_end == TagEnd::Item => {
+                Some(Event::End(TagEnd::Item)) => {
                     let _ = flush_buf(&mut buf, &mut spans, base);
                     break;
                 }
@@ -964,7 +976,9 @@ fn highlight_code(language: &str, code: &str, bg: Option<Color>) -> Vec<(Vec<Spa
             result.push((vec![Span::raw("\n")], String::new()));
             continue;
         }
-        let highlighted = highlighter.highlight_line(trimmed, syntax_set).unwrap();
+        let highlighted = highlighter
+            .highlight_line(trimmed, syntax_set)
+            .expect("syntect highlight_line should not fail with valid syntax set");
 
         let mut spans = Vec::new();
         let mut raw_text = String::new();
@@ -1101,7 +1115,7 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let md = "> first\n>> second\n>>> third\n";
         let (lines, _, _) = render(md, &theme);
-        assert!(lines.len() >= 1, "should have at least one line");
+        assert!(!lines.is_empty(), "should have at least one line");
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -1235,7 +1249,7 @@ use crate::theme::Theme;
     fn wiki_link_paragraph() {
         let theme = Theme::default_dark();
         let (lines, _, wiki_links) = render("before [[target]] after", &theme);
-        assert!(wiki_links.len() >= 1 && !wiki_links[0].is_empty(),
+        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
             "Expected wiki link in paragraph, got wiki_links={wiki_links:?}");
         let link = &wiki_links[0][0];
         assert_eq!(link.target, "target");

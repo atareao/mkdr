@@ -104,8 +104,12 @@ fn main() {
 
     let stdin_content = if cli_args.files.is_empty() && !io::stdin().is_terminal() {
         let mut buf = String::new();
-        io::stdin().lock().read_to_string(&mut buf).ok();
-        Some(buf)
+        if let Err(e) = io::stdin().lock().read_to_string(&mut buf) {
+            eprintln!("Warning: could not read from stdin: {}", e);
+            None
+        } else {
+            Some(buf)
+        }
     } else {
         None
     };

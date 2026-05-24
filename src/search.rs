@@ -1,6 +1,7 @@
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 
+/// Find all line indices in `raw_lines` that contain `query` (case-insensitive).
 pub fn search_lines(raw_lines: &[String], query: &str) -> Vec<usize> {
     if query.is_empty() {
         return Vec::new();
@@ -14,6 +15,7 @@ pub fn search_lines(raw_lines: &[String], query: &str) -> Vec<usize> {
         .collect()
 }
 
+/// Find the next match after `current` in a sorted `results` list, wrapping around.
 pub fn find_next_match(results: &[usize], current: Option<usize>) -> Option<usize> {
     if results.is_empty() {
         return None;
@@ -31,6 +33,7 @@ pub fn find_next_match(results: &[usize], current: Option<usize>) -> Option<usiz
     }
 }
 
+/// Find the previous match before `current` in a sorted `results` list, wrapping around.
 pub fn find_prev_match(results: &[usize], current: Option<usize>) -> Option<usize> {
     if results.is_empty() {
         return None;
@@ -54,6 +57,7 @@ pub fn find_prev_match(results: &[usize], current: Option<usize>) -> Option<usiz
     }
 }
 
+/// Highlight occurrences of `query` in `line` by applying an inverted style to matches.
 pub fn highlight_line(line: &Line<'static>, query: &str) -> Line<'static> {
     if query.is_empty() {
         return line.clone();

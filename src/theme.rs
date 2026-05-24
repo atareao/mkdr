@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use ratatui::style::Color;
+use ratatui::style::{Color, Style};
 use serde::Deserialize;
 
 #[derive(Deserialize, Clone)]
@@ -19,12 +19,17 @@ struct ThemeFile {
     styles: HashMap<String, StyleDef>,
 }
 
+/// A named colour theme with text styles for markdown elements.
+///
+/// Themes are loaded from `.toml` files in either the built-in set or
+/// the user's `~/.config/mdr/themes/` directory.
 pub struct Theme {
     styles: HashMap<String, StyleDef>,
     colors: HashMap<String, Color>,
 }
 
 impl Theme {
+    /// Create an empty theme with no styles defined.
     pub fn default() -> Self {
         Self {
             styles: HashMap::new(),
@@ -32,6 +37,7 @@ impl Theme {
         }
     }
 
+    /// Built-in dark theme (VS Code–inspired palette).
     pub fn default_dark() -> Self {
         let mut t = Self::default();
         t.set("paragraph", Some("#d4d4d4"), None, false, false, false, false);
@@ -55,6 +61,7 @@ impl Theme {
         t
     }
 
+    /// Built-in light theme (GitHub–inspired palette).
     pub fn default_light() -> Self {
         let mut t = Self::default();
         t.set("paragraph", Some("#333333"), None, false, false, false, false);
@@ -90,6 +97,7 @@ impl Theme {
         });
     }
 
+    /// Load a theme by name. Checks built-in themes first, then `~/.config/mdr/themes/{name}.toml`.
     pub fn load(name: &str) -> Option<Self> {
         if let Some(content) = get_built_in(name) {
             return Self::from_toml(content);
@@ -100,6 +108,7 @@ impl Theme {
         Self::from_toml(&content)
     }
 
+    /// List all built-in theme names.
     pub fn list_names() -> Vec<&'static str> {
         vec![
             "ayu_dark",
@@ -131,6 +140,7 @@ impl Theme {
         })
     }
 
+    /// Resolve a colour spec (hex like `#ff8800` or a named colour from the theme's `[colors]` table).
     pub fn resolve_color(&self, spec: &str) -> Option<Color> {
         if let Some(c) = self.colors.get(spec) {
             return Some(*c);
@@ -155,6 +165,9 @@ impl Theme {
         }
     }
 
+    /// Get style properties for a named element (e.g. `"paragraph"`, `"heading1"`, `"link"`).
+    ///
+    /// Returns `(fg, bg, bold, italic, underline, strikethrough)`.
     #[expect(clippy::type_complexity)]
     pub fn style_for(&self, key: &str) -> Option<(Option<Color>, Option<Color>, bool, bool, bool, bool)> {
         let def = self.styles.get(key)?;
@@ -163,6 +176,20 @@ impl Theme {
         Some((fg, bg, def.bold.unwrap_or(false), def.italic.unwrap_or(false), def.underline.unwrap_or(false), def.strikethrough.unwrap_or(false)))
     }
 
+    /// Resolve a style entry to a ratatui `Style`, or `None` if the key is not found.
+    pub fn style_as_style(&self, key: &str) -> Option<Style> {
+        let (fg, bg, bold, italic, underline, strikethrough) = self.style_for(key)?;
+        let mut s = Style::default();
+        if let Some(c) = fg { s = s.fg(c); }
+        if let Some(c) = bg { s = s.bg(c); }
+        if bold { s = s.add_modifier(ratatui::style::Modifier::BOLD); }
+        if italic { s = s.add_modifier(ratatui::style::Modifier::ITALIC); }
+        if underline { s = s.add_modifier(ratatui::style::Modifier::UNDERLINED); }
+        if strikethrough { s = s.add_modifier(ratatui::style::Modifier::CROSSED_OUT); }
+        Some(s)
+    }
+
+    /// Get the foreground colour for a named element.
     pub fn fg_for(&self, key: &str) -> Option<Color> {
         let def = self.styles.get(key)?;
         def.fg.as_ref().and_then(|c| self.resolve_color(c))
@@ -182,5 +209,90 @@ fn get_built_in(name: &str) -> Option<&'static str> {
         "ayu_mirage" => Some(include_str!("../themes/ayu_mirage.toml")),
         "ayu_light" => Some(include_str!("../themes/ayu_light.toml")),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_dark_has_paragraph_style() {
+        let t = Theme::default_dark();
+        assert!(t.style_for("paragraph").is_some());
+    }
+
+    #[test]
+    fn default_dark_has_all_headings() {
+        let t = Theme::default_dark();
+        for i in 1..=6 {
+            let key = format!("heading{}", i);
+            assert!(t.style_for(&key).is_some(), "missing {key}");
+        }
+    }
+
+    #[test]
+    fn default_light_has_paragraph_style() {
+        let t = Theme::default_light();
+        assert!(t.style_for("paragraph").is_some());
+    }
+
+    #[test]
+    fn list_names_returns_expected_count() {
+        let names = Theme::list_names();
+        assert_eq!(names.len(), 10);
+    }
+
+    #[test]
+    fn resolve_color_hex_6digit() {
+        let t = Theme::default();
+        let c = t.resolve_color("#ff8800");
+        assert_eq!(c, Some(Color::Rgb(255, 136, 0)));
+    }
+
+    #[test]
+    fn resolve_color_hex_3digit() {
+        let t = Theme::default();
+        let c = t.resolve_color("#f80");
+        assert_eq!(c, Some(Color::Rgb(255, 136, 0)));
+    }
+
+    #[test]
+    fn resolve_color_hex_without_hash() {
+        let t = Theme::default();
+        let c = t.resolve_color("ff8800");
+        assert_eq!(c, Some(Color::Rgb(255, 136, 0)));
+    }
+
+    #[test]
+    fn resolve_color_invalid_returns_none() {
+        let t = Theme::default();
+        assert!(t.resolve_color("not a color").is_none());
+    }
+
+    #[test]
+    fn resolve_color_named_in_empty_theme_parses_as_hex() {
+        let t = Theme::default();
+        // Without a [colors] table, any name is tried as hex
+        assert!(t.resolve_color("abcxyz").is_none());
+    }
+
+    #[test]
+    fn fg_for_known_key() {
+        let t = Theme::default_dark();
+        let fg = t.fg_for("paragraph");
+        assert!(fg.is_some(), "paragraph should have a foreground color");
+    }
+
+    #[test]
+    fn fg_for_unknown_key_returns_none() {
+        let t = Theme::default_dark();
+        assert!(t.fg_for("nonexistent_key").is_none());
+    }
+
+    #[test]
+    fn style_for_unknown_key_returns_none() {
+        let t = Theme::default();
+        assert!(t.style_for("nothing").is_none());
     }
 }
