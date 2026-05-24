@@ -1,4 +1,17 @@
 # Changelog
+## [0.3.0] - 2026-05-24
+
+### Bug Fixes
+
+- Use GH_PAT for release push to protected main
+
+### Features
+
+- Prepare release v0.3.0
+
+### Miscellaneous Tasks
+
+- Release v0.3.0
 ## [0.2.0] - 2026-05-24
 
 ### Bug Fixes
@@ -19,4 +32,5 @@
 - Add CI workflow for PR checks
 - Prepare first automated release (#2)
 - Remove release trigger file
+- Release v0.2.0
 ## [0.1.0] - 2026-05-23
