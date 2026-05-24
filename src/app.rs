@@ -56,6 +56,9 @@ pub struct App {
     parent_dir: Option<PathBuf>,
     status_message: Option<String>,
     theme: Theme,
+    cursor_line: usize,
+    cursor_col: u16,
+    viewport_height: u16,
     scroll: usize,
     h_scroll: u16,
     max_scroll: usize,
@@ -77,6 +80,8 @@ pub struct App {
     follow: bool,
     last_modified: Option<SystemTime>,
     content: String,
+    file_history: Vec<PathBuf>,
+    raw_mode: bool,
 }
 
 impl App {
@@ -97,6 +102,9 @@ impl App {
             wiki_links: Vec::new(),
             parent_dir: None,
             status_message: None,
+            cursor_line: 0,
+            cursor_col: 0,
+            viewport_height: 20,
             theme,
             scroll: 0,
             h_scroll: 0,
@@ -119,18 +127,24 @@ impl App {
             follow,
             last_modified: None,
             content: String::new(),
+            file_history: Vec::new(),
+            raw_mode: false,
         };
 
         if let Some(stdin_content) = content_from_stdin {
             app.content = stdin_content;
             app.render_content();
             if start_line > 1 {
-                app.scroll = (start_line - 1).min(app.max_scroll);
+                let sl = (start_line - 1).min(app.max_scroll);
+                app.cursor_line = sl;
+                app.scroll = sl;
             }
         } else if !app.files.is_empty() {
             app.load_current_file();
             if start_line > 1 {
-                app.scroll = (start_line - 1).min(app.max_scroll);
+                let sl = (start_line - 1).min(app.max_scroll);
+                app.cursor_line = sl;
+                app.scroll = sl;
             }
         }
 
@@ -153,7 +167,7 @@ impl App {
         self.search_results = if self.search_query.is_empty() {
             Vec::new()
         } else {
-            search_lines(&self.raw_lines, &self.search_query)
+            self.search_lines_for_mode( &self.search_query)
         };
     }
 
@@ -164,6 +178,49 @@ impl App {
         self.wiki_links = wiki_links;
         self.max_scroll = self.lines.len().saturating_sub(1);
         self.scroll = self.scroll.min(self.max_scroll);
+        self.cursor_line = self.cursor_line.min(self.max_scroll);
+    }
+
+    fn search_lines_for_mode(&self, query: &str) -> Vec<usize> {
+        if self.raw_mode {
+            let lines: Vec<String> = self.content.lines().map(String::from).collect();
+            search_lines(&lines, query)
+        } else {
+            search_lines(&self.raw_lines, query)
+        }
+    }
+
+    fn line_width(&self, line: usize) -> u16 {
+        if self.raw_mode {
+            self.content
+                .lines()
+                .nth(line)
+                .map(|l| l.len() as u16)
+                .unwrap_or(0)
+        } else {
+            self.lines
+                .get(line)
+                .map(|l| l.spans.iter().map(|s| s.content.as_ref().len() as u16).sum())
+                .unwrap_or(0)
+        }
+    }
+
+    fn follow_cursor(&mut self) {
+        let vh = self.viewport_height.max(1) as usize;
+        // Vertical
+        if self.cursor_line < self.scroll {
+            self.scroll = self.cursor_line;
+        } else if self.cursor_line >= self.scroll + vh {
+            self.scroll = self.cursor_line + 1 - vh;
+        }
+        // Horizontal (only in unwrapped mode)
+        if self.wrap_mode == WrapMode::None {
+            let lw = self.show_line_numbers as u16;
+            let screen_col = self.cursor_col as i16 - self.h_scroll as i16;
+            if screen_col < lw as i16 {
+                self.h_scroll = self.cursor_col.saturating_sub(lw);
+            }
+        }
     }
 
     fn current_file_name(&self) -> &str {
@@ -218,7 +275,7 @@ impl App {
         }
     }
 
-    fn render_frame(&self, f: &mut ratatui::Frame) {
+    fn render_frame(&mut self, f: &mut ratatui::Frame) {
         let area = f.area();
 
         let areas = if self.show_status {
@@ -228,9 +285,12 @@ impl App {
         };
 
         let content_area = areas[0];
+        self.viewport_height = content_area.height;
 
         let display_lines: Vec<Line<'static>> = if self.mode == Mode::FileList {
             self.build_file_list()
+        } else if self.raw_mode {
+            self.build_raw_lines()
         } else {
             self.lines
                 .iter()
@@ -269,6 +329,27 @@ impl App {
         }
         f.render_widget(paragraph, content_area);
 
+        // Draw cursor
+        if self.mode == Mode::Normal || self.mode == Mode::FileList {
+            let total_lines = if self.raw_mode {
+                self.content.lines().count()
+            } else {
+                self.lines.len()
+            };
+            let line_num_width = if self.show_line_numbers {
+                total_lines.to_string().len() + 1
+            } else {
+                0
+            } as u16;
+            let screen_y = content_area.y + self.cursor_line.saturating_sub(self.scroll) as u16;
+            let screen_x = content_area.x + line_num_width + self.cursor_col.saturating_sub(self.h_scroll);
+            if screen_y < content_area.bottom() && screen_x < content_area.right() {
+                if let Some(cell) = f.buffer_mut().cell_mut((screen_x, screen_y)) {
+                    std::mem::swap(&mut cell.fg, &mut cell.bg);
+                }
+            }
+        }
+
         if self.show_status {
             let status = self.build_status_bar();
             f.render_widget(status, areas[1]);
@@ -277,18 +358,26 @@ impl App {
 
     fn build_status_bar(&self) -> Paragraph<'static> {
         let file_name = self.current_file_name();
-        let ln = (self.scroll + 1).min(self.lines.len());
-        let total = self.lines.len();
+        let total = if self.raw_mode {
+            self.content.lines().count()
+        } else {
+            self.lines.len()
+        };
+        let ln = (self.cursor_line + 1).min(total);
         let pct = if total == 0 {
             0
         } else {
-            (self.scroll * 100 / total).min(100)
+            (self.cursor_line * 100 / total).min(100)
         };
 
         let mut parts = vec![
             format!(" {} — Ln {}/{} ({}%) ", file_name, ln, total, pct),
             format!(" wrap:{} ", self.wrap_mode.as_str()),
         ];
+
+        if self.raw_mode {
+            parts.push(" RAW ".to_string());
+        }
 
         if self.has_multiple_files() {
             parts.push(format!(
@@ -382,7 +471,7 @@ impl App {
             if let KeyCode::Char(c) = code
                 && c.is_ascii_lowercase()
             {
-                self.bookmarks.insert(c, self.scroll);
+                self.bookmarks.insert(c, self.cursor_line);
             }
             return;
         }
@@ -392,7 +481,8 @@ impl App {
                 && c.is_ascii_lowercase()
             {
                 if let Some(&pos) = self.bookmarks.get(&c) {
-                    self.scroll = pos.min(self.max_scroll);
+                    self.cursor_line = pos.min(self.max_scroll);
+                    self.follow_cursor();
                 }
             }
             return;
@@ -403,33 +493,42 @@ impl App {
                 std::process::exit(0);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                self.scroll = self.scroll.saturating_sub(1);
+                self.cursor_line = self.cursor_line.saturating_sub(1);
+                self.follow_cursor();
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.scroll = self.scroll.saturating_add(1).min(self.max_scroll);
+                self.cursor_line = self.cursor_line.saturating_add(1).min(self.max_scroll);
+                self.follow_cursor();
             }
-            KeyCode::Left => {
-                if self.wrap_mode == WrapMode::None {
-                    self.h_scroll = self.h_scroll.saturating_sub(4);
-                }
+            KeyCode::Left | KeyCode::Char('h') => {
+                self.cursor_col = self.cursor_col.saturating_sub(1);
+                self.follow_cursor();
             }
-            KeyCode::Right => {
-                if self.wrap_mode == WrapMode::None {
-                    self.h_scroll = self.h_scroll.saturating_add(4);
-                }
+            KeyCode::Right | KeyCode::Char('l') => {
+                let max_col = self.line_width(self.cursor_line);
+                self.cursor_col = self.cursor_col.saturating_add(1).min(max_col);
+                self.follow_cursor();
             }
             KeyCode::PageUp | KeyCode::Char('b') => {
-                self.scroll = self.scroll.saturating_sub(20);
+                self.cursor_line = self.cursor_line.saturating_sub(self.viewport_height as usize);
+                self.follow_cursor();
             }
             KeyCode::PageDown | KeyCode::Char('f') => {
-                self.scroll = self.scroll.saturating_add(20).min(self.max_scroll);
+                self.cursor_line = self.cursor_line
+                    .saturating_add(self.viewport_height as usize)
+                    .min(self.max_scroll);
+                self.follow_cursor();
             }
             KeyCode::Home | KeyCode::Char('g') => {
-                self.scroll = 0;
+                self.cursor_line = 0;
+                self.cursor_col = 0;
                 self.h_scroll = 0;
+                self.scroll = 0;
             }
             KeyCode::End | KeyCode::Char('G') => {
-                self.scroll = self.max_scroll;
+                self.cursor_line = self.max_scroll;
+                self.cursor_col = 0;
+                self.follow_cursor();
             }
             KeyCode::Char('/') => {
                 self.mode = Mode::SearchForward;
@@ -447,7 +546,8 @@ impl App {
                 if !self.search_results.is_empty() {
                     self.search_idx = find_next_match(&self.search_results, self.search_idx);
                     if let Some(idx) = self.search_idx {
-                        self.scroll = idx.min(self.max_scroll);
+                        self.cursor_line = idx.min(self.max_scroll);
+                        self.follow_cursor();
                     }
                 }
             }
@@ -455,11 +555,26 @@ impl App {
                 if !self.search_results.is_empty() {
                     self.search_idx = find_prev_match(&self.search_results, self.search_idx);
                     if let Some(idx) = self.search_idx {
-                        self.scroll = idx.min(self.max_scroll);
+                        self.cursor_line = idx.min(self.max_scroll);
+                        self.follow_cursor();
                     }
                 }
             }
             KeyCode::Char('r') => {
+                self.raw_mode = !self.raw_mode;
+                if self.raw_mode {
+                    let line_count = self.content.lines().count().saturating_sub(1);
+                    self.max_scroll = line_count;
+                } else {
+                    self.max_scroll = self.lines.len().saturating_sub(1);
+                }
+                self.search_query.clear();
+                self.search_results.clear();
+                self.search_idx = None;
+                self.cursor_line = self.cursor_line.min(self.max_scroll);
+                self.follow_cursor();
+            }
+            KeyCode::Char('R') => {
                 if !self.files.is_empty() {
                     self.reload_current_file();
                 }
@@ -467,6 +582,8 @@ impl App {
             KeyCode::Char(']') => {
                 if self.has_multiple_files() {
                     self.file_index = (self.file_index + 1) % self.files.len();
+                    self.cursor_line = 0;
+                    self.cursor_col = 0;
                     self.scroll = 0;
                     self.h_scroll = 0;
                     self.search_idx = None;
@@ -480,6 +597,8 @@ impl App {
                     } else {
                         self.file_index - 1
                     };
+                    self.cursor_line = 0;
+                    self.cursor_col = 0;
                     self.scroll = 0;
                     self.h_scroll = 0;
                     self.search_idx = None;
@@ -495,45 +614,79 @@ impl App {
             KeyCode::Enter => {
                 self.follow_wiki_link();
             }
+            KeyCode::Backspace => {
+                self.navigate_back();
+            }
             _ => {}
         }
     }
 
+    fn navigate_back(&mut self) {
+        self.raw_mode = false;
+        let prev = match self.file_history.pop() {
+            Some(p) => p,
+            None => {
+                self.status_message = Some("No previous file in history".to_string());
+                return;
+            }
+        };
+        if !self.files.is_empty() {
+            self.files[self.file_index] = prev;
+        } else {
+            self.files.push(prev);
+            self.file_index = 0;
+        }
+        self.cursor_line = 0;
+        self.cursor_col = 0;
+        self.scroll = 0;
+        self.h_scroll = 0;
+        self.search_idx = None;
+        self.search_query.clear();
+        self.search_results.clear();
+        self.load_current_file();
+        self.status_message = None;
+    }
+
     fn follow_wiki_link(&mut self) {
-        let links = match self.wiki_links.get(self.scroll) {
+        let links = match self.wiki_links.get(self.cursor_line) {
             Some(l) if !l.is_empty() => l,
             _ => {
                 self.status_message = Some("No wiki link on this line".to_string());
                 return;
             }
         };
-        let h = self.h_scroll as usize;
         let link = links.iter()
-            .find(|l| l.col >= h)
+            .filter(|l| l.col <= self.cursor_col as usize)
+            .last()
             .unwrap_or(&links[0]);
         let target_path = if let Some(parent) = &self.parent_dir {
-            let mut p = parent.join(&link.target);
-            if p.extension().is_none() {
-                p.set_extension("md");
-                if !p.exists() {
-                    // Fall back to extensionless path
-                    p = parent.join(&link.target);
-                }
+            let p = parent.join(&link.target);
+            if p.exists() {
+                p
+            } else if p.extension().is_none() {
+                let with_md = parent.join(format!("{}.md", &link.target));
+                if with_md.exists() { with_md } else { p }
+            } else {
+                p
             }
-            p
         } else {
-            let mut p = PathBuf::from(&link.target);
-            if p.extension().is_none() {
-                p.set_extension("md");
-                if !p.exists() {
-                    p = PathBuf::from(&link.target);
-                }
+            let p = PathBuf::from(&link.target);
+            if p.exists() {
+                p
+            } else if p.extension().is_none() {
+                let with_md = PathBuf::from(format!("{}.md", &link.target));
+                if with_md.exists() { with_md } else { p }
+            } else {
+                p
             }
-            p
         };
         if !target_path.exists() {
             self.status_message = Some(format!("File not found: {}", target_path.display()));
             return;
+        }
+        // Save current file to history before navigating
+        if !self.files.is_empty() {
+            self.file_history.push(self.files[self.file_index].clone());
         }
         // Replace current file with the wiki link target
         if !self.files.is_empty() {
@@ -542,6 +695,8 @@ impl App {
             self.files.push(target_path);
             self.file_index = 0;
         }
+        self.cursor_line = 0;
+        self.cursor_col = 0;
         self.scroll = 0;
         self.h_scroll = 0;
         self.search_idx = None;
@@ -564,7 +719,7 @@ impl App {
                         }
                     }
                     self.search_history_idx = None;
-                    self.search_results = search_lines(&self.raw_lines, &query);
+                    self.search_results = self.search_lines_for_mode( &query);
                     self.search_idx = if forward {
                         find_next_match(&self.search_results, Some(self.scroll))
                     } else {
@@ -582,7 +737,7 @@ impl App {
                     *idx -= 1;
                     self.input_buf = self.search_history[*idx].clone();
                     self.search_query = self.input_buf.clone();
-                    self.search_results = search_lines(&self.raw_lines, &self.search_query);
+                    self.search_results = self.search_lines_for_mode( &self.search_query);
                     self.search_idx = None;
                 }
             }
@@ -596,7 +751,7 @@ impl App {
                         self.input_buf.clear();
                     }
                     self.search_query = self.input_buf.clone();
-                    self.search_results = search_lines(&self.raw_lines, &self.search_query);
+                    self.search_results = self.search_lines_for_mode( &self.search_query);
                     self.search_idx = None;
                 }
             }
@@ -608,7 +763,7 @@ impl App {
                 self.input_buf.pop();
                 self.search_query = self.input_buf.clone();
                 if !self.search_query.is_empty() {
-                    self.search_results = search_lines(&self.raw_lines, &self.search_query);
+                    self.search_results = self.search_lines_for_mode( &self.search_query);
                     self.search_idx = None;
                 } else {
                     self.search_results.clear();
@@ -619,7 +774,7 @@ impl App {
                 self.input_buf.push(c);
                 self.search_query = self.input_buf.clone();
                 if !self.search_query.is_empty() {
-                    self.search_results = search_lines(&self.raw_lines, &self.search_query);
+                    self.search_results = self.search_lines_for_mode( &self.search_query);
                     self.search_idx = None;
                 }
             }
@@ -643,9 +798,13 @@ impl App {
                 } else if let Some(pct) = trimmed.strip_suffix('%')
                     && let Ok(pct_val) = pct.parse::<usize>()
                 {
-                    self.scroll = (pct_val * self.max_scroll / 100).min(self.max_scroll);
+                    let line = (pct_val * self.max_scroll / 100).min(self.max_scroll);
+                    self.cursor_line = line;
+                    self.scroll = line;
                 } else if let Ok(line_num) = trimmed.parse::<usize>() {
-                    self.scroll = line_num.saturating_sub(1).min(self.max_scroll);
+                    let line = line_num.saturating_sub(1).min(self.max_scroll);
+                    self.cursor_line = line;
+                    self.scroll = line;
                 }
                 self.mode = Mode::Normal;
             }
@@ -718,6 +877,95 @@ impl App {
                 Style::default().fg(fg).add_modifier(bold),
             )));
         }
+        result
+    }
+
+    fn build_raw_lines(&self) -> Vec<Line<'static>> {
+        let para = self.theme.style_for("paragraph");
+        let (pfg, pbg, _, _, _, _) = para.unwrap_or((None, None, false, false, false, false));
+        let mut para_style = Style::default();
+        if let Some(c) = pfg { para_style = para_style.fg(c); }
+        if let Some(c) = pbg { para_style = para_style.bg(c); }
+
+        let frontmatter_style = para_style.add_modifier(Modifier::DIM);
+
+        let code_block = self.theme.style_for("code_block");
+        let (cfg, cbg, cbold, citalic, _, _) = code_block.unwrap_or((None, None, false, false, false, false));
+        let mut code_style = Style::default();
+        if let Some(c) = cfg { code_style = code_style.fg(c); }
+        if let Some(c) = cbg { code_style = code_style.bg(c); }
+        if cbold { code_style = code_style.add_modifier(Modifier::BOLD); }
+        if citalic { code_style = code_style.add_modifier(Modifier::ITALIC); }
+
+        let heading_styles: Vec<Style> = (0..6).map(|i| {
+            let key = format!("heading{}", i + 1);
+            let h = self.theme.style_for(&key);
+            let (hfg, hbg, hbold, hitalic, _, _) = h.unwrap_or((pfg, pbg, false, false, false, false));
+            let mut s = Style::default();
+            if let Some(c) = hfg { s = s.fg(c); }
+            if let Some(c) = hbg { s = s.bg(c); }
+            if hbold { s = s.add_modifier(Modifier::BOLD); }
+            if hitalic { s = s.add_modifier(Modifier::ITALIC); }
+            s
+        }).collect();
+
+        let content_lines: Vec<&str> = self.content.lines().collect();
+        let total_lines = content_lines.len();
+        let query_lower = self.search_query.to_lowercase();
+        let has_search = !self.search_query.is_empty();
+
+        // Check if content starts with frontmatter
+        let first_non_empty = content_lines.iter().find(|l| !l.trim().is_empty()).copied();
+        let has_frontmatter = first_non_empty.map_or(false, |l| l.trim() == "---");
+
+        let mut in_frontmatter = false;
+        let mut in_fence = false;
+        let mut result: Vec<Line<'static>> = Vec::with_capacity(total_lines);
+
+        for (i, line) in content_lines.iter().enumerate() {
+            let trimmed = line.trim_start();
+            let style: Style;
+
+            if has_frontmatter && !in_frontmatter && trimmed == "---" {
+                in_frontmatter = true;
+                style = frontmatter_style;
+            } else if in_frontmatter && trimmed == "---" {
+                in_frontmatter = false;
+                style = frontmatter_style;
+            } else if in_frontmatter {
+                style = frontmatter_style;
+            } else if trimmed.starts_with("```") {
+                in_fence = !in_fence;
+                style = code_style;
+            } else if in_fence {
+                style = code_style;
+            } else if let Some(level) = trimmed
+                .chars()
+                .position(|c| c != '#')
+                .filter(|&pos| pos > 0 && pos <= 6 && trimmed.as_bytes().get(pos).map_or(false, |&b| b == b' ' || pos == trimmed.len()))
+            {
+                style = heading_styles[level - 1];
+            } else {
+                style = para_style;
+            }
+
+            let mut spans = vec![Span::styled((*line).to_string(), style)];
+
+            if has_search && line.to_lowercase().contains(&query_lower) {
+                let line_obj = Line::from(spans);
+                let highlighted = highlight_line(&line_obj, &self.search_query);
+                spans = highlighted.spans;
+            }
+
+            let mut line_obj = Line::from(spans);
+
+            if self.show_line_numbers {
+                line_obj = prepend_line_number(line_obj, i + 1, total_lines);
+            }
+
+            result.push(line_obj);
+        }
+
         result
     }
 

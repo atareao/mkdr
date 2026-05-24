@@ -14,71 +14,116 @@ const BULLET_CHAR: char = '•';
 const QUOTE_CHAR: char = '▐';
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct WikiLink {
     pub target: String,
+    #[allow(dead_code)]
     pub title: String,
     pub col: usize,
 }
 
-enum WikiSegment<'a> {
-    Plain(&'a str),
-    WikiLink { target: &'a str, title: &'a str },
-}
+fn preprocess_wiki_links(content: &str) -> String {
+    let mut result = String::with_capacity(content.len() + 256);
+    let mut in_fence = false;
 
-fn split_wiki_links<'a>(text: &'a str) -> Vec<WikiSegment<'a>> {
-    let mut segments = Vec::new();
-    let mut pos = 0;
-    let bytes = text.as_bytes();
+    for line in content.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("```") {
+            in_fence = !in_fence;
+        }
 
-    while pos < text.len() {
-        if bytes[pos..].starts_with(b"[[") {
-            let open = pos;
-            pos += 2;
-            let mut pipe = None;
-            let mut found = false;
-            while pos < text.len() {
-                if bytes[pos..].starts_with(b"]]") {
-                    if let Some(pipe_pos) = pipe {
-                        let target = &text[open + 2..pipe_pos];
-                        let title = &text[pipe_pos + 1..pos];
-                        segments.push(WikiSegment::WikiLink { target, title });
-                    } else {
-                        let target = &text[open + 2..pos];
-                        segments.push(WikiSegment::WikiLink { target, title: target });
+        if in_fence {
+            result.push_str(line);
+            result.push('\n');
+            continue;
+        }
+
+        let bytes = line.as_bytes();
+        let mut pos = 0;
+        while pos < line.len() {
+            if bytes[pos..].starts_with(b"[[") {
+                let inner_start = pos + 2;
+                let mut end = inner_start;
+                let mut found_close = false;
+                while end < line.len() {
+                    if bytes[end..].starts_with(b"]]") {
+                        found_close = true;
+                        break;
                     }
-                    pos += 2;
-                    found = true;
+                    end += 1;
+                }
+                if found_close {
+                    let inner = &line[inner_start..end];
+                    let close_pos = end + 2;
+                    if let Some(pipe) = inner.find('|') {
+                        let target = &inner[..pipe];
+                        let title = &inner[pipe + 1..];
+                        result.push('[');
+                        result.push_str(title);
+                        result.push_str("](<wikilink://");
+                        result.push_str(target);
+                        result.push_str(">)");
+                    } else {
+                        result.push('[');
+                        result.push_str(inner);
+                        result.push_str("](<wikilink://");
+                        result.push_str(inner);
+                        result.push_str(">)");
+                    }
+                    pos = close_pos;
+                    continue;
+                }
+            }
+            // Not at [[ — find the next [[ or end of line, then emit the whole slice
+            let start = pos;
+            while pos + 1 < line.len() {
+                if bytes[pos] == b'[' && bytes[pos + 1] == b'[' {
                     break;
                 }
-                if bytes[pos] == b'|' && pipe.is_none() {
-                    pipe = Some(pos);
-                }
                 pos += 1;
             }
-            if !found {
-                // malformed — emit as plain text from open to end
-                segments.push(WikiSegment::Plain(&text[open..]));
-            }
-        } else {
-            let start = pos;
-            while pos < text.len() && !bytes[pos..].starts_with(b"[[") {
+            if pos == start && pos < line.len() {
+                // Was at a lone character (single ASCII or within a multi-byte char
+                // range that didn't match [[). Advance past it.
+                // bytes[pos] is known to not be part of [[, so the while loop above
+                // didn't run because pos+1 >= line.len(). Advance by 1 byte to
+                // ensure forward progress; the slice &line[start..pos+1] will be
+                // valid UTF-8 since pos started at a char boundary.
                 pos += 1;
             }
-            segments.push(WikiSegment::Plain(&text[start..pos]));
+            result.push_str(&line[start..pos]);
         }
+        result.push('\n');
     }
 
-    segments
+    if !content.ends_with('\n') && result.ends_with('\n') {
+        result.pop();
+    }
+
+    result
+}
+
+fn strip_frontmatter(content: &str) -> &str {
+    let s = content.trim_start();
+    if !s.starts_with("---") {
+        return content;
+    }
+    // Find closing --- on its own line
+    if let Some(end) = s[3..].find("\n---") {
+        let rest = &s[end + 7..].trim_start();
+        return rest;
+    }
+    content
 }
 
 pub fn render(content: &str, theme: &Theme) -> (Vec<Line<'static>>, Vec<String>, Vec<Vec<WikiLink>>) {
+    let content = strip_frontmatter(content);
+    let processed = preprocess_wiki_links(content);
     let renderer = Renderer::new(theme);
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
     opts.insert(Options::ENABLE_TASKLISTS);
-    let parser = Parser::new_ext(content, opts);
+    let parser = Parser::new_ext(&processed, opts);
     let mut lines: Vec<Line<'static>> = Vec::new();
     let mut raw: Vec<String> = Vec::new();
     let mut wiki_links: Vec<Vec<WikiLink>> = Vec::new();
@@ -251,11 +296,15 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                                 format!("{}{} ", indent, BULLET_CHAR)
                             };
                             *counter += 1;
+                            let prefix_width = marker.width();
                             let prefix = Span::styled(
                                 marker,
                                 Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
                             );
-                            let (mut item_spans, item_links, children) = self.collect_item_inline(&mut parser, &mut list_counters);
+                            let (mut item_spans, mut item_links, children) = self.collect_item_inline(&mut parser, &mut list_counters);
+                            for link in &mut item_links {
+                                link.col += prefix_width;
+                            }
                             item_spans.insert(0, prefix);
                             raw_line(&item_spans, raw);
                             lines.push(Line::from(item_spans));
@@ -406,21 +455,49 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                     col += flush_buf(&mut buf, &mut spans, base);
                     match tag {
                         Tag::Emphasis => {
-                            spans.extend(self.collect_inline_with_breaks(events, &TagEnd::Emphasis, &self.italic, preserve_breaks, wiki_links));
+                            let child = self.collect_inline_with_breaks(events, &TagEnd::Emphasis, &self.italic, preserve_breaks, wiki_links);
+                            for span in &child {
+                                col += span.content.width();
+                            }
+                            spans.extend(child);
                         }
                         Tag::Strong => {
-                            spans.extend(self.collect_inline_with_breaks(events, &TagEnd::Strong, &self.bold, preserve_breaks, wiki_links));
+                            let child = self.collect_inline_with_breaks(events, &TagEnd::Strong, &self.bold, preserve_breaks, wiki_links);
+                            for span in &child {
+                                col += span.content.width();
+                            }
+                            spans.extend(child);
                         }
                         Tag::Strikethrough => {
-                            spans.extend(self.collect_inline_with_breaks(events, &TagEnd::Strikethrough, &self.strike, preserve_breaks, wiki_links));
+                            let child = self.collect_inline_with_breaks(events, &TagEnd::Strikethrough, &self.strike, preserve_breaks, wiki_links);
+                            for span in &child {
+                                col += span.content.width();
+                            }
+                            spans.extend(child);
                         }
                         Tag::Link { ref dest_url, .. } => {
+                            let link_col = col;
                             let mut child = self.collect_inline_with_breaks(events, &TagEnd::Link, &self.link, preserve_breaks, wiki_links);
-                            if !dest_url.is_empty() {
+                            if dest_url.starts_with("wikilink://") {
+                                let target = &dest_url["wikilink://".len()..];
+                                let title_text: String = child.iter().map(|s| s.content.as_ref()).collect();
+                                wiki_links.push(WikiLink {
+                                    target: target.to_string(),
+                                    title: title_text,
+                                    col: link_col,
+                                });
+                                let url_style = Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::DIM);
+                                child.push(Span::styled(format!(" ─ {}", target), url_style));
+                            } else if !dest_url.is_empty() {
                                 let url_style = Style::default()
                                     .fg(Color::DarkGray)
                                     .add_modifier(Modifier::DIM);
                                 child.push(Span::styled(format!(" ─ {}", dest_url), url_style));
+                            }
+                            for span in &child {
+                                col += span.content.width();
                             }
                             spans.append(&mut child);
                         }
@@ -453,39 +530,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                     break;
                 }
                 Some(Event::Text(text)) => {
-                    let segments = split_wiki_links(&text);
-                    let has_wiki_link = segments.iter().any(|s| matches!(s, WikiSegment::WikiLink { .. }));
-                    if has_wiki_link {
-                        col += flush_buf(&mut buf, &mut spans, base);
-                        for segment in segments {
-                            match segment {
-                                WikiSegment::Plain(s) => {
-                                    if !s.is_empty() {
-                                        buf.push_str(s);
-                                        col += flush_buf(&mut buf, &mut spans, base);
-                                    }
-                                }
-                                WikiSegment::WikiLink { target, title } => {
-                                    let link_style = self.link.as_style();
-                                    spans.push(Span::styled(title.to_string(), link_style));
-                                    wiki_links.push(WikiLink {
-                                        target: target.to_string(),
-                                        title: title.to_string(),
-                                        col,
-                                    });
-                                    col += title.width();
-                                    let url_style = Style::default()
-                                        .fg(Color::DarkGray)
-                                        .add_modifier(Modifier::DIM);
-                                    let url_text = format!(" ─ {}", target);
-                                    spans.push(Span::styled(url_text.clone(), url_style));
-                                    col += url_text.width();
-                                }
-                            }
-                        }
-                    } else {
-                        buf.push_str(&text);
-                    }
+                    buf.push_str(&text);
                 }
                 Some(Event::Code(text)) => {
                     col += flush_buf(&mut buf, &mut spans, base);
@@ -512,6 +557,8 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                             .add_modifier(Modifier::BOLD),
                     ));
                     col += icon.width();
+                    spans.push(Span::raw(" "));
+                    col += 1;
                 }
                 None => break,
                 _ => {}
@@ -694,19 +741,45 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                     col += flush_buf(&mut buf, &mut spans, base);
                     match tag {
                         Tag::Emphasis => {
-                            spans.extend(self.collect_inline(events, &TagEnd::Emphasis, &self.italic, &mut wiki_links));
+                            let child = self.collect_inline(events, &TagEnd::Emphasis, &self.italic, &mut wiki_links);
+                            for span in &child {
+                                col += span.content.width();
+                            }
+                            spans.extend(child);
                         }
                         Tag::Strong => {
-                            spans.extend(self.collect_inline(events, &TagEnd::Strong, &self.bold, &mut wiki_links));
+                            let child = self.collect_inline(events, &TagEnd::Strong, &self.bold, &mut wiki_links);
+                            for span in &child {
+                                col += span.content.width();
+                            }
+                            spans.extend(child);
                         }
                         Tag::Strikethrough => {
-                            spans.extend(self.collect_inline(events, &TagEnd::Strikethrough, &self.strike, &mut wiki_links));
+                            let child = self.collect_inline(events, &TagEnd::Strikethrough, &self.strike, &mut wiki_links);
+                            for span in &child {
+                                col += span.content.width();
+                            }
+                            spans.extend(child);
                         }
                         Tag::Link { ref dest_url, .. } => {
+                            let link_col = col;
                             let mut child = self.collect_inline(events, &TagEnd::Link, &self.link, &mut wiki_links);
-                            if !dest_url.is_empty() {
+                            if dest_url.starts_with("wikilink://") {
+                                let target = &dest_url["wikilink://".len()..];
+                                let title_text: String = child.iter().map(|s| s.content.as_ref()).collect();
+                                wiki_links.push(WikiLink {
+                                    target: target.to_string(),
+                                    title: title_text,
+                                    col: link_col,
+                                });
+                                let url_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                                child.push(Span::styled(format!(" ─ {}", target), url_style));
+                            } else if !dest_url.is_empty() {
                                 let url_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
                                 child.push(Span::styled(format!(" ─ {}", dest_url), url_style));
+                            }
+                            for span in &child {
+                                col += span.content.width();
                             }
                             spans.append(&mut child);
                         }
@@ -726,7 +799,14 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                         Tag::List(start) => {
                             children.extend(self.render_nested_list(events, list_counters, start));
                         }
-                        Tag::CodeBlock(_) | Tag::Paragraph | Tag::Heading { .. } => {
+                        Tag::Paragraph => {
+                            let child = self.collect_inline(events, &TagEnd::Paragraph, &self.para, &mut wiki_links);
+                            for span in &child {
+                                col += span.content.width();
+                            }
+                            spans.extend(child);
+                        }
+                        Tag::CodeBlock(_) | Tag::Heading { .. } => {
                             let _ = self.skip_to(events, &end_of(&tag));
                         }
                         _ => {}
@@ -737,39 +817,7 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                     break;
                 }
                 Some(Event::Text(text)) => {
-                    let segments = split_wiki_links(&text);
-                    let has_wiki_link = segments.iter().any(|s| matches!(s, WikiSegment::WikiLink { .. }));
-                    if has_wiki_link {
-                        col += flush_buf(&mut buf, &mut spans, base);
-                        for segment in segments {
-                            match segment {
-                                WikiSegment::Plain(s) => {
-                                    if !s.is_empty() {
-                                        buf.push_str(s);
-                                        col += flush_buf(&mut buf, &mut spans, base);
-                                    }
-                                }
-                                WikiSegment::WikiLink { target, title } => {
-                                    let link_style = self.link.as_style();
-                                    spans.push(Span::styled(title.to_string(), link_style));
-                                    wiki_links.push(WikiLink {
-                                        target: target.to_string(),
-                                        title: title.to_string(),
-                                        col,
-                                    });
-                                    col += title.width();
-                                    let url_style = Style::default()
-                                        .fg(Color::DarkGray)
-                                        .add_modifier(Modifier::DIM);
-                                    let url_text = format!(" ─ {}", target);
-                                    spans.push(Span::styled(url_text.clone(), url_style));
-                                    col += url_text.width();
-                                }
-                            }
-                        }
-                    } else {
-                        buf.push_str(&text);
-                    }
+                    buf.push_str(&text);
                 }
                 Some(Event::Code(text)) => {
                     col += flush_buf(&mut buf, &mut spans, base);
@@ -785,6 +833,8 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                     let color = if checked { Color::Green } else { Color::Red };
                     spans.push(Span::styled(icon.to_string(), Style::default().fg(color).add_modifier(Modifier::BOLD)));
                     col += icon.width();
+                    spans.push(Span::raw(" "));
+                    col += 1;
                 }
                 None => break,
                 _ => {}
@@ -814,11 +864,15 @@ list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
                             format!("{}{} ", indent, BULLET_CHAR)
                         };
                         *counter += 1;
+                        let prefix_width = marker.width();
                         let prefix = Span::styled(
                             marker,
                             Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
                         );
-                        let (mut item_spans, item_links, grandchildren) = self.collect_item_inline(events, list_counters);
+                        let (mut item_spans, mut item_links, grandchildren) = self.collect_item_inline(events, list_counters);
+                        for link in &mut item_links {
+                            link.col += prefix_width;
+                        }
                         item_spans.insert(0, prefix);
                         let raw_text: String = item_spans.iter().map(|s| s.content.as_ref()).collect();
                         items.push((item_spans, raw_text, item_links));
@@ -1175,5 +1229,119 @@ use crate::theme::Theme;
         let code_span = &lines[0].spans[1];
         assert!(code_span.style.bg.is_some(), "inline code should have bg color: {code_span:?}");
         insta::assert_debug_snapshot!(lines);
+    }
+
+    #[test]
+    fn wiki_link_paragraph() {
+        let theme = Theme::default_dark();
+        let (lines, _, wiki_links) = render("before [[target]] after", &theme);
+        assert!(wiki_links.len() >= 1 && !wiki_links[0].is_empty(),
+            "Expected wiki link in paragraph, got wiki_links={wiki_links:?}");
+        let link = &wiki_links[0][0];
+        assert_eq!(link.target, "target");
+        assert_eq!(link.title, "target");
+        let text: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.contains("target ─ target"), "Expected rendered text to contain 'target ─ target', got: {text}");
+    }
+
+    #[test]
+    fn wiki_link_with_title() {
+        let theme = Theme::default_dark();
+        let (lines, _, wiki_links) = render("before [[target|Title]] after", &theme);
+        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link with title, got wiki_links={wiki_links:?}");
+        let link = &wiki_links[0][0];
+        assert_eq!(link.target, "target");
+        assert_eq!(link.title, "Title");
+        let text: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(text.contains("Title ─ target"), "Expected 'Title ─ target', got: {text}");
+    }
+
+    #[test]
+    fn wiki_link_in_list() {
+        let theme = Theme::default_dark();
+        let (_, _, wiki_links) = render("- [[target|Title]]\n", &theme);
+        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link in list, got wiki_links={wiki_links:?}");
+        let link = &wiki_links[0][0];
+        assert_eq!(link.target, "target");
+        assert_eq!(link.title, "Title");
+    }
+
+    #[test]
+    fn wiki_link_multiple() {
+        let theme = Theme::default_dark();
+        let md = "[[a]] and [[b|Bee]]\n";
+        let (_, _, wiki_links) = render(md, &theme);
+        assert_eq!(wiki_links[0].len(), 2, "Expected 2 wiki links, got {:?}", wiki_links[0]);
+        assert_eq!(wiki_links[0][0].target, "a");
+        assert_eq!(wiki_links[0][1].target, "b");
+        assert_eq!(wiki_links[0][1].title, "Bee");
+    }
+
+    #[test]
+    fn wiki_link_inside_code_block_unaffected() {
+        let theme = Theme::default_dark();
+        let (lines, _, wiki_links) = render("```\n[[not a link]]\n```\n", &theme);
+    // code blocks should have no wiki_links
+        let any_wiki = wiki_links.iter().any(|wl| !wl.is_empty());
+        assert!(!any_wiki, "Code block should not contain wiki links, got {wiki_links:?}");
+        let code_text: String = lines.iter().map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect::<String>()).collect();
+        assert!(code_text.contains("[[not a link]]"), "Code block should preserve [[...]] text, got: {code_text}");
+    }
+
+    #[test]
+    fn non_ascii_chars_preserved() {
+        let theme = Theme::default_dark();
+        let input = "Temática: íñçáé — «comillas» — año 2026";
+        let (lines, raw, _) = render(input, &theme);
+        assert_eq!(raw[0], input,
+            "Non-ASCII characters should be preserved exactly. raw[0]={:?}", raw[0]);
+        let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(rendered, input,
+            "Rendered text should match input. got={rendered:?}");
+    }
+
+    #[test]
+    fn wiki_link_with_non_ascii() {
+        let theme = Theme::default_dark();
+        let input = "[[archivo|Título con acento]]";
+        let (lines, _, wiki_links) = render(input, &theme);
+        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link, got {wiki_links:?}");
+        let link = &wiki_links[0][0];
+        assert_eq!(link.target, "archivo");
+        assert_eq!(link.title, "Título con acento");
+        let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(rendered.contains("Título con acento ─ archivo"),
+            "Rendered should contain 'Título con acento ─ archivo', got: {rendered}");
+    }
+
+    #[test]
+    fn heading_with_non_ascii() {
+        let theme = Theme::default_dark();
+        let input = "# RAG, MCP y Skills: El Trío Definitivo";
+        let (lines, raw, _) = render(input, &theme);
+        assert!(raw[0].contains("Trío"),
+            "Heading should preserve 'Trío', got raw={:?}", raw);
+        let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(rendered.contains("Trío"),
+            "Rendered heading should contain 'Trío', got: {rendered}");
+    }
+
+    #[test]
+    fn wiki_link_target_with_spaces() {
+        let theme = Theme::default_dark();
+        let (lines, _, wiki_links) = render("- [[_Aventuras de un tiburón|Aventuras de un tiburón]]\n", &theme);
+        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link with spaces in target, got {wiki_links:?}");
+        let link = &wiki_links[0][0];
+        assert_eq!(link.target, "_Aventuras de un tiburón");
+        assert_eq!(link.title, "Aventuras de un tiburón");
+        let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
+        assert!(rendered.contains("Aventuras de un tiburón ─ _Aventuras de un tiburón"),
+            "Expected rendered text, got: {rendered}");
+        assert!(!rendered.contains("[Aventuras"),
+            "Should NOT contain raw markdown link syntax '[...](...'), got: {rendered}");
     }
 }

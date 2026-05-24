@@ -1,16 +1,19 @@
 ---
 source: src/render.rs
+assertion_line: 1110
 expression: lines
 ---
 [
     Line::from_iter([
         Span::from("• ").fg(Color::Rgb(86, 156, 214)),
         Span::from("☑").green().bold(),
+        Span::from(" "),
         Span::from("done").fg(Color::Rgb(212, 212, 212)),
     ]),
     Line::from_iter([
         Span::from("• ").fg(Color::Rgb(86, 156, 214)),
         Span::from("☐").red().bold(),
+        Span::from(" "),
         Span::from("todo").fg(Color::Rgb(212, 212, 212)),
     ]),
 ]

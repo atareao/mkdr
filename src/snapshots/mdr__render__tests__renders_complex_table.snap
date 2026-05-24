@@ -1,5 +1,6 @@
 ---
 source: src/render.rs
+assertion_line: 1163
 expression: lines
 ---
 [
