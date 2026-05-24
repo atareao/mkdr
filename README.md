@@ -144,6 +144,11 @@ cargo run -- README.md
 
 No `rust-toolchain.toml` — uses whatever `rustup default` provides. Edition 2024.
 
+## Git Flow & releases
+
+See [GIT_FLOW.md](GIT_FLOW.md) for the complete workflow.  
+Releases are automatic: merging to `main` triggers CI to bump the version, tag, and publish a GitHub release.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
@@ -156,6 +161,5 @@ MIT — see [LICENSE](LICENSE).
 
 - **`clap_complete` as optional dependency** — only used for `--completions`; gate behind a Cargo feature flag
 - **Integration tests for navigation** — add tests for keyboard/mode logic (requires mock terminal or extracted state machine)
-- **Wiki-link navigation within multi-file sessions** — improve file-history UX (backtrack across multiple hops)
 - **Configurable horizontal rule width** — use terminal width instead of fixed 80 columns
 - **Blockquote colour theming** — expose quote-depth colours in the theme file instead of hardcoded palette

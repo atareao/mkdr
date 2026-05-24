@@ -29,6 +29,14 @@ Add with `cargo add` — do not hand-edit `[dependencies]` unless you have to. E
 
 No tests yet. Test structure should follow convention: `cargo test` runs all. Name tests `test_*` in a `#[cfg(test)] mod tests { ... }` block in the same file as the code under test, or in `tests/` for integration tests.
 
-## Git
+## Git & releases
 
-Commits: conventional-commit style prefixes (`feat:`, `fix:`, `refactor:`, `chore:`). Single-crate repo, main branch.
+Git Flow — see [GIT_FLOW.md](GIT_FLOW.md) for full workflow.
+
+- `main` — production (merge aquí = release automático)
+- `develop` — integración de features
+- `feature/*` — ramas de trabajo
+- `hotfix/*` — correcciones urgentes desde main
+
+Commits: conventional-commit style (`feat:`, `fix:`, `refactor:`, `chore:`, etc.).
+NO hacer version bump manual — CI lo hace automáticamente al mergear a main.
