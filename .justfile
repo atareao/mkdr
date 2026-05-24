@@ -31,11 +31,7 @@ upgrade:
     #!/bin/fish
     vampus upgrade --patch
     set VERSION $(vampus show)
-    cd backend
     cargo update
-    cd ..
-    git commit -am "Upgrade to version $VERSION"
-    git tag -a "$VERSION" -m "Version $VERSION"
-    # clean old podman images
-    podman image list  | grep {{name}} | sort -r | tail -n +5 | awk '{print $3}' | while read id; echo $id; podman rmi $id; end
-    just build push
+    git commit -am "Upgrade to version v$VERSION"
+    git tag -a "v$VERSION" -m "Version v$VERSION"
+    git push origin v{{version}}
