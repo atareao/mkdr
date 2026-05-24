@@ -82,6 +82,7 @@ pub struct App {
     content: String,
     file_history: Vec<PathBuf>,
     raw_mode: bool,
+    pending_count: Option<usize>,
 }
 
 impl App {
@@ -129,6 +130,7 @@ impl App {
             content: String::new(),
             file_history: Vec::new(),
             raw_mode: false,
+            pending_count: None,
         };
 
         if let Some(stdin_content) = content_from_stdin {
@@ -489,44 +491,62 @@ impl App {
         }
 
         match code {
+            KeyCode::Char(c) if c.is_ascii_digit() => {
+                if c == '0' && self.pending_count.is_none() {
+                    // standalone 0 → column 0 (vim-like)
+                    self.cursor_col = 0;
+                } else {
+                    let d = c.to_digit(10).unwrap() as usize;
+                    self.pending_count = Some(self.pending_count.unwrap_or(0) * 10 + d);
+                }
+                return;
+            }
             KeyCode::Char('q') | KeyCode::Esc => {
                 std::process::exit(0);
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                self.cursor_line = self.cursor_line.saturating_sub(1);
+                let count = self.pending_count.take().unwrap_or(1);
+                self.cursor_line = self.cursor_line.saturating_sub(count);
                 self.follow_cursor();
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                self.cursor_line = self.cursor_line.saturating_add(1).min(self.max_scroll);
+                let count = self.pending_count.take().unwrap_or(1);
+                self.cursor_line = self.cursor_line.saturating_add(count).min(self.max_scroll);
                 self.follow_cursor();
             }
             KeyCode::Left | KeyCode::Char('h') => {
-                self.cursor_col = self.cursor_col.saturating_sub(1);
+                let count = self.pending_count.take().unwrap_or(1) as u16;
+                self.cursor_col = self.cursor_col.saturating_sub(count);
                 self.follow_cursor();
             }
             KeyCode::Right | KeyCode::Char('l') => {
+                let count = self.pending_count.take().unwrap_or(1) as u16;
                 let max_col = self.line_width(self.cursor_line);
-                self.cursor_col = self.cursor_col.saturating_add(1).min(max_col);
+                self.cursor_col = self.cursor_col.saturating_add(count).min(max_col);
                 self.follow_cursor();
             }
             KeyCode::PageUp | KeyCode::Char('b') => {
-                self.cursor_line = self.cursor_line.saturating_sub(self.viewport_height as usize);
+                let count = self.pending_count.take().unwrap_or(1);
+                self.cursor_line = self.cursor_line.saturating_sub(self.viewport_height as usize * count);
                 self.follow_cursor();
             }
             KeyCode::PageDown | KeyCode::Char('f') => {
+                let count = self.pending_count.take().unwrap_or(1);
                 self.cursor_line = self.cursor_line
-                    .saturating_add(self.viewport_height as usize)
+                    .saturating_add(self.viewport_height as usize * count)
                     .min(self.max_scroll);
                 self.follow_cursor();
             }
             KeyCode::Home | KeyCode::Char('g') => {
-                self.cursor_line = 0;
+                let target = self.pending_count.take().map(|c| c.saturating_sub(1)).unwrap_or(0);
+                self.cursor_line = target.min(self.max_scroll);
                 self.cursor_col = 0;
                 self.h_scroll = 0;
-                self.scroll = 0;
+                self.scroll = target.min(self.max_scroll);
             }
             KeyCode::End | KeyCode::Char('G') => {
-                self.cursor_line = self.max_scroll;
+                let target = self.pending_count.take().map(|c| c.saturating_sub(1)).unwrap_or(self.max_scroll);
+                self.cursor_line = target.min(self.max_scroll);
                 self.cursor_col = 0;
                 self.follow_cursor();
             }
@@ -543,8 +563,11 @@ impl App {
                 self.input_buf.clear();
             }
             KeyCode::Char('n') => {
+                let count = self.pending_count.take().unwrap_or(1);
                 if !self.search_results.is_empty() {
-                    self.search_idx = find_next_match(&self.search_results, self.search_idx);
+                    for _ in 0..count {
+                        self.search_idx = find_next_match(&self.search_results, self.search_idx);
+                    }
                     if let Some(idx) = self.search_idx {
                         self.cursor_line = idx.min(self.max_scroll);
                         self.follow_cursor();
@@ -552,8 +575,11 @@ impl App {
                 }
             }
             KeyCode::Char('N') => {
+                let count = self.pending_count.take().unwrap_or(1);
                 if !self.search_results.is_empty() {
-                    self.search_idx = find_prev_match(&self.search_results, self.search_idx);
+                    for _ in 0..count {
+                        self.search_idx = find_prev_match(&self.search_results, self.search_idx);
+                    }
                     if let Some(idx) = self.search_idx {
                         self.cursor_line = idx.min(self.max_scroll);
                         self.follow_cursor();
@@ -619,6 +645,7 @@ impl App {
             }
             _ => {}
         }
+        self.pending_count = None;
     }
 
     fn navigate_back(&mut self) {
