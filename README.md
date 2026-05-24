@@ -11,6 +11,7 @@ cargo run -- README.md
 ## Features
 
 - **Markdown rendering** with full theme support (bold, italic, links, tables, code, headings)
+- **Interactive links** — `Enter` on a wiki link navigates to the file; `Enter` on a web link opens the browser; `Enter` on an image opens the default image viewer
 - **Vim-style navigation** (`j`/`k`, `b`/`f`, `g`/`G`, `←`/`→`)
 - **Incremental search** (`/` forward, `?` backward, `n`/`N` next/prev)
 - **Go to line** (`:` + number + `Enter`)
@@ -64,6 +65,7 @@ mdr -w none chapter1.md chapter2.md chapter3.md
 | `:` | Go to line |
 | `r` | Reload file |
 | `[` / `]` | Previous / next file |
+| `Enter` | Open link under cursor (wiki → file, web → browser, image → viewer) |
 
 In search and go-to-line modes: `Enter` to confirm, `Esc` to cancel, `Backspace` to delete.
 
@@ -148,7 +150,7 @@ MIT — see [LICENSE](LICENSE).
 
 ## Dependencies
 
-[clap](https://crates.io/crates/clap) · [crossterm](https://crates.io/crates/crossterm) · [dirs](https://crates.io/crates/dirs) · [pulldown-cmark](https://crates.io/crates/pulldown-cmark) · [ratatui](https://crates.io/crates/ratatui) · [serde](https://crates.io/crates/serde) · [toml](https://crates.io/crates/toml) · [unicode-width](https://crates.io/crates/unicode-width)
+[clap](https://crates.io/crates/clap) · [crossterm](https://crates.io/crates/crossterm) · [dirs](https://crates.io/crates/dirs) · [open](https://crates.io/crates/open) · [pulldown-cmark](https://crates.io/crates/pulldown-cmark) · [ratatui](https://crates.io/crates/ratatui) · [serde](https://crates.io/crates/serde) · [toml](https://crates.io/crates/toml) · [unicode-width](https://crates.io/crates/unicode-width)
 
 ## Roadmap
 
