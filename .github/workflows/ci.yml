@@ -14,6 +14,6 @@ jobs:
       - name: Install Rust toolchain
         run: rustup show
       - name: Build
-        run: cargo build --locked
+        run: cargo build
       - name: Test
         run: cargo test
