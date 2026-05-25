@@ -810,22 +810,22 @@ impl App {
         let line = self.view.cursor_line;
 
         // Check for external links (web / image) on this line
-        if let Some(items) = self.rendered.links.get(line) {
-            if let Some(item) = items
-                .iter()
-                .rfind(|i| i.col <= self.view.cursor_col as usize)
-            {
-                let action = match item.kind {
-                    crate::render::LinkKind::Web => "browser",
-                    crate::render::LinkKind::Image => "image viewer",
-                };
-                if open::that(&item.url).is_ok() {
-                    self.status_message = Some(format!("Opened in {}", action));
-                } else {
-                    self.status_message = Some(format!("Failed to open: {}", item.url));
-                }
-                return;
+        if let Some(item) = self
+            .rendered
+            .links
+            .get(line)
+            .and_then(|items| items.iter().rfind(|i| i.col <= self.view.cursor_col as usize))
+        {
+            let action = match item.kind {
+                crate::render::LinkKind::Web => "browser",
+                crate::render::LinkKind::Image => "image viewer",
+            };
+            if open::that(&item.url).is_ok() {
+                self.status_message = Some(format!("Opened in {}", action));
+            } else {
+                self.status_message = Some(format!("Failed to open: {}", item.url));
             }
+            return;
         }
 
         // Fall back to wiki link navigation

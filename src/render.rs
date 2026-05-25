@@ -13,6 +13,10 @@ use crate::theme::Theme;
 const BULLET_CHAR: char = '•';
 const QUOTE_CHAR: char = '▐';
 const RULE_WIDTH: usize = 80;
+
+pub type RenderOutput =
+    (Vec<Line<'static>>, Vec<String>, Vec<Vec<WikiLink>>, Vec<Vec<LinkItem>>);
+type ListItemData = (Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>);
 const QUOTE_COLORS: [Color; 3] = [
     Color::Rgb(106, 153, 85),
     Color::Rgb(86, 156, 214),
@@ -146,12 +150,7 @@ fn strip_frontmatter(content: &str) -> &str {
 pub fn render(
     content: &str,
     theme: &Theme,
-) -> (
-    Vec<Line<'static>>,
-    Vec<String>,
-    Vec<Vec<WikiLink>>,
-    Vec<Vec<LinkItem>>,
-) {
+) -> RenderOutput {
     let content = strip_frontmatter(content);
     let processed = preprocess_wiki_links(content);
     let renderer = Renderer::new(theme);
@@ -1200,8 +1199,8 @@ impl Renderer {
         events: &mut Parser<'_>,
         list_counters: &mut Vec<(usize, bool)>,
         start: Option<u64>,
-    ) -> Vec<(Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>)> {
-        let mut items: Vec<(Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>)> = Vec::new();
+    ) -> Vec<ListItemData> {
+        let mut items: Vec<ListItemData> = Vec::new();
         list_counters.push((start.unwrap_or(1) as usize, start.is_some()));
         loop {
             match events.next() {
