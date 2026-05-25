@@ -1,9 +1,24 @@
 # Changelog
+## [0.4.2] - 2026-05-25
+
+### Refactor
+
+- Move insta snapshots from src/snapshots/ to tests/snapshots/ (#11)
+## [0.4.1] - 2026-05-25
+
+### Miscellaneous Tasks
+
+- Misc improvements (CI, docs, Cargo.lock, clippy, fmt)
+- Release v0.4.1
 ## [0.4.0] - 2026-05-25
 
 ### Features
 
 - Rename project from mdr to mkdr
+
+### Miscellaneous Tasks
+
+- Release v0.4.0
 ## [0.3.3] - 2026-05-25
 
 ### Bug Fixes
