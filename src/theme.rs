@@ -22,7 +22,7 @@ struct ThemeFile {
 /// A named colour theme with text styles for markdown elements.
 ///
 /// Themes are loaded from `.toml` files in either the built-in set or
-/// the user's `~/.config/mdr/themes/` directory.
+/// the user's `~/.config/mkdr/themes/` directory.
 pub struct Theme {
     styles: HashMap<String, StyleDef>,
     colors: HashMap<String, Color>,
@@ -97,13 +97,13 @@ impl Theme {
         });
     }
 
-    /// Load a theme by name. Checks built-in themes first, then `~/.config/mdr/themes/{name}.toml`.
+    /// Load a theme by name. Checks built-in themes first, then `~/.config/mkdr/themes/{name}.toml`.
     pub fn load(name: &str) -> Option<Self> {
         if let Some(content) = get_built_in(name) {
             return Self::from_toml(content);
         }
         let dir = dirs::config_dir()?;
-        let path = dir.join("mdr").join("themes").join(format!("{}.toml", name));
+        let path = dir.join("mkdr").join("themes").join(format!("{}.toml", name));
         let content = std::fs::read_to_string(path).ok()?;
         Self::from_toml(&content)
     }

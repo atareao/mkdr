@@ -25,7 +25,7 @@ use theme::Theme;
 
 Built-in themes: ayu_dark, ayu_light, ayu_mirage, catppuccin_mocha, dracula, gruvbox_dark, nord, onedark, solarized_light, tokyonight
 
-User themes: place .toml files in ~/.config/mdr/themes/")]
+User themes: place .toml files in ~/.config/mkdr/themes/")]
 struct Args {
     /// Markdown file(s) to display (reads from stdin if omitted)
     files: Vec<PathBuf>,
@@ -64,7 +64,7 @@ fn main() {
 
     if let Some(shell) = cli_args.completions {
         let mut cmd = Args::command();
-        generate(shell, &mut cmd, "mdr", &mut io::stdout());
+        generate(shell, &mut cmd, "mkdr", &mut io::stdout());
         return;
     }
 
@@ -115,8 +115,8 @@ fn main() {
     };
 
     if cli_args.files.is_empty() && stdin_content.is_none() {
-        eprintln!("Usage: markrender [OPTIONS] <FILE>");
-        eprintln!("   or: cat file.md | markrender [OPTIONS]");
+        eprintln!("Usage: mkdr [OPTIONS] <FILE>");
+        eprintln!("   or: cat file.md | mkdr [OPTIONS]");
         eprintln!();
         eprintln!("Built-in themes: {}", theme::Theme::list_names().join(", "));
         std::process::exit(1);
@@ -127,8 +127,8 @@ fn main() {
         if !f.exists() {
             eprintln!("Error: '{}' not found", f.display());
             eprintln!();
-            eprintln!("Usage: markrender [OPTIONS] <FILE>");
-            eprintln!("   or: cat file.md | markrender [OPTIONS]");
+            eprintln!("Usage: mkdr [OPTIONS] <FILE>");
+            eprintln!("   or: cat file.md | mkdr [OPTIONS]");
             eprintln!();
             eprintln!("Built-in themes: {}", theme::Theme::list_names().join(", "));
             std::process::exit(1);

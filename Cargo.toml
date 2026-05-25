@@ -1,10 +1,10 @@
 [package]
-name = "mdr"
+name = "mkdr"
 version = "0.3.3"
 edition = "2024"
 description = "TUI markdown renderer with paging, search, theming, and multi-file support"
 license = "MIT"
-repository = "https://github.com/atareao/mdr"
+repository = "https://github.com/atareao/mkdr"
 readme = "README.md"
 keywords = ["markdown", "tui", "ratatui", "renderer", "terminal"]
 categories = ["command-line-utilities", "rendering"]
