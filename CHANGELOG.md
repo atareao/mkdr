@@ -1,9 +1,26 @@
 # Changelog
+## [0.5.3] - 2026-05-25
+
+### Bug Fixes
+
+- Remove misleading Release badge
+
+### Documentation
+
+- Add shields.io badges to README
+
+### Features
+
+- Add Ctrl+u / Ctrl+d half-page scroll shortcuts
 ## [0.5.2] - 2026-05-25
 
 ### Bug Fixes
 
 - Inline gh api command to avoid multi-arg parsing issue
+
+### Miscellaneous Tasks
+
+- Release v0.5.2
 ## [0.5.1] - 2026-05-25
 
 ### Miscellaneous Tasks
