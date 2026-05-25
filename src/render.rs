@@ -1421,7 +1421,7 @@ mod tests {
 
     macro_rules! snap {
         ($expr:expr) => {
-            insta::with_settings!({snapshot_path => "../../tests/snapshots"}, {
+insta::with_settings!({snapshot_path => "../tests/snapshots"}, {
                 insta::assert_debug_snapshot!($expr);
             });
         };
