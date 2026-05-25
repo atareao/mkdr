@@ -21,9 +21,9 @@ jobs:
       - name: Generate completions
         run: |
           mkdir -p completions
-          ./target/release/mdr --completions bash > completions/mdr.bash
-          ./target/release/mdr --completions zsh > completions/mdr.zsh
-          ./target/release/mdr --completions fish > completions/mdr.fish
+          ./target/release/mkdr --completions bash > completions/mkdr.bash
+          ./target/release/mkdr --completions zsh > completions/mkdr.zsh
+          ./target/release/mkdr --completions fish > completions/mkdr.fish
       - name: Upload completions
         uses: actions/upload-artifact@v4
         with:
@@ -66,10 +66,10 @@ jobs:
       - name: Prepare archive
         shell: bash
         run: |
-          BIN="target/${{ matrix.target }}/release/mdr${{ matrix.ext }}"
-          ARCHIVE_NAME="mdr${{ matrix.ext }}"
+          BIN="target/${{ matrix.target }}/release/mkdr${{ matrix.ext }}"
+          ARCHIVE_NAME="mkdr${{ matrix.ext }}"
           cp "$BIN" "$ARCHIVE_NAME"
-          PKG="mdr-${{ matrix.target }}"
+          PKG="mkdr-${{ matrix.target }}"
           if [ "${{ matrix.archive }}" = "tar.gz" ]; then
             tar czf "$PKG.tar.gz" "$ARCHIVE_NAME"
             echo "ARTIFACT=$PKG.tar.gz" >> $GITHUB_ENV
@@ -81,7 +81,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: mdr-${{ matrix.target }}
+          name: mkdr-${{ matrix.target }}
           path: ${{ env.ARTIFACT }}
 
   release:
@@ -90,7 +90,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: mdr-*
+          pattern: mkdr-*
           merge-multiple: true
 
       - uses: actions/download-artifact@v4
@@ -101,7 +101,7 @@ jobs:
       - name: Generate release body
         run: |
           cat > notes.md <<'EOF'
-          ## mdr
+          ## mkdr
 
           ### Downloads
 
@@ -112,28 +112,28 @@ jobs:
             [[ "$f" == *.md ]] && continue
             [[ "$f" == *.txt ]] && continue
             [ -f "$f" ] || continue
-            arch=$(echo "$f" | sed 's/^mdr-//; s/\.tar\.gz$//; s/\.zip$//')
+            arch=$(echo "$f" | sed 's/^mkdr-//; s/\.tar\.gz$//; s/\.zip$//')
             echo "| \`$arch\` | \`$f\` |" >> notes.md
           done
           echo "" >> notes.md
           echo "### Shell completions" >> notes.md
           echo "" >> notes.md
           echo "Available in the release assets:" >> notes.md
-          echo "- \`completions/mdr.bash\` — Bash" >> notes.md
-          echo "- \`completions/mdr.zsh\` — Zsh" >> notes.md
-          echo "- \`completions/mdr.fish\` — Fish" >> notes.md
+          echo "- \`completions/mkdr.bash\` — Bash" >> notes.md
+          echo "- \`completions/mkdr.zsh\` — Zsh" >> notes.md
+          echo "- \`completions/mkdr.fish\` — Fish" >> notes.md
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          name: mdr ${{ github.ref_name }}
+          name: mkdr ${{ github.ref_name }}
           body_path: notes.md
           files: |
             *.tar.gz
             *.zip
-            completions/mdr.bash
-            completions/mdr.zsh
-            completions/mdr.fish
+            completions/mkdr.bash
+            completions/mkdr.zsh
+            completions/mkdr.fish
           generate_release_notes: true
 
   publish:

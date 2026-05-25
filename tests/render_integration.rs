@@ -2,8 +2,8 @@ use std::io::Write;
 use std::process::Command;
 
 fn mdr_bin() -> String {
-    // CARGO_BIN_EXE_mdr is set automatically by cargo for integration tests
-    env!("CARGO_BIN_EXE_mdr").to_string()
+    // CARGO_BIN_EXE_mkdr is set automatically by cargo for integration tests
+    env!("CARGO_BIN_EXE_mkdr").to_string()
 }
 
 #[test]
@@ -42,7 +42,7 @@ fn test_cli_version() {
         .expect("failed to run mdr");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("mdr"), "stdout: {stdout}");
+    assert!(stdout.contains("mkdr"), "stdout: {stdout}");
 }
 
 #[test]

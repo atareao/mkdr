@@ -18,8 +18,8 @@
 
 ## UX
 
-- [x] **Auto-crear `~/.config/mdr/themes/`** si no existe al arrancar
-- [x] **Completado de shell** — `mdr --completions bash`
+- [x] **Auto-crear `~/.config/mkdr/themes/`** si no existe al arrancar
+- [x] **Completado de shell** — `mkdr --completions bash`
 - [x] **Pipe status bar** — mostrar "stdin" en barra al leer de pipe
 - [x] **Múltiples archivos: lista** — `:files` muestra índice navegable con `j`/`k`/`Enter`
 - [x] **Temas desde TUI** — `:theme nord` cambia sin reiniciar
@@ -34,9 +34,9 @@
 ## Empaquetado
 
 - [x] **Completado bash/zsh/fish** en CI — generado en release y subido como asset
-- [x] **Homebrew formula** — en `packaging/Formula/mdr.rb`
-- [x] **AUR package** — `packaging/PKGBUILD` para `mdr-bin`
-- [x] **cargo-binstall** — compatible sin configuración adicional (binario único `mdr`)
+- [x] **Homebrew formula** — en `packaging/Formula/mkdr.rb`
+- [x] **AUR package** — `packaging/PKGBUILD` para `mkdr-bin`
+- [x] **cargo-binstall** — compatible sin configuración adicional (binario único `mkdr`)
 
 ## Bugs conocidos
 

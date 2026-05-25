@@ -1,6 +1,6 @@
-# mdr
+# mkdr
 
-[![release](https://github.com/atareao/mdr/actions/workflows/release.yml/badge.svg)](https://github.com/atareao/mdr/actions/workflows/release.yml)
+[![release](https://github.com/atareao/mkdr/actions/workflows/release.yml/badge.svg)](https://github.com/atareao/mkdr/actions/workflows/release.yml)
 
 TUI markdown renderer with paging, search, theming, and multi-file support.
 
@@ -19,14 +19,14 @@ cargo run -- README.md
 - **Line numbers** toggle (`-n`)
 - **Multiple files** — pass several files, navigate with `[` / `]`
 - **Watch mode** (`-f`) — auto-reloads on file change
-- **Stdin pipe** — `cat file.md | mdr`
-- **10 built-in themes** + user themes in `~/.config/mdr/themes/`
-- **Config file** at `~/.config/mdr/config.toml`
+- **Stdin pipe** — `cat file.md | mkdr`
+- **10 built-in themes** + user themes in `~/.config/mkdr/themes/`
+- **Config file** at `~/.config/mkdr/config.toml`
 
 ## Usage
 
 ```
-mdr [OPTIONS] [FILES]...
+mkdr [OPTIONS] [FILES]...
 ```
 
 | Option | Default | Description |
@@ -40,11 +40,11 @@ mdr [OPTIONS] [FILES]...
 | `-f`, `--follow` | `false` | Watch file for changes |
 
 ```bash
-mdr doc.md
-mdr -n -t nord doc.md
-cat README.md | mdr
-mdr -f -t catppuccin_mocha doc.md
-mdr -w none chapter1.md chapter2.md chapter3.md
+mkdr doc.md
+mkdr -n -t nord doc.md
+cat README.md | mkdr
+mkdr -f -t catppuccin_mocha doc.md
+mkdr -w none chapter1.md chapter2.md chapter3.md
 ```
 
 ## Keybindings
@@ -76,16 +76,16 @@ In search and go-to-line modes: `Enter` to confirm, `Esc` to cancel, `Backspace`
 `ayu_dark` · `ayu_light` · `ayu_mirage` · `catppuccin_mocha` · `dracula` · `gruvbox_dark` · `nord` · `onedark` · `solarized_light` · `tokyonight`
 
 ```bash
-mdr -t nord doc.md
-mdr -t ayu_mirage doc.md
+mkdr -t nord doc.md
+mkdr -t ayu_mirage doc.md
 ```
 
 ### User themes
 
-Place `.toml` files in `~/.config/mdr/themes/`:
+Place `.toml` files in `~/.config/mkdr/themes/`:
 
 ```toml
-# ~/.config/mdr/themes/my_theme.toml
+# ~/.config/mkdr/themes/my_theme.toml
 [colors]
 text = "#abb2bf"
 bg = "#282c34"
@@ -103,7 +103,7 @@ Style fields: `fg` (hex or color reference), `bg`, `bold`, `italic`, `underline`
 
 ## Configuration
 
-`~/.config/mdr/config.toml`:
+`~/.config/mkdr/config.toml`:
 
 ```toml
 wrap = "word"
@@ -116,15 +116,15 @@ CLI flags override config values. All fields optional.
 
 ## Download
 
-Pre-built binaries for each [release](https://github.com/atareao/mdr/releases):
+Pre-built binaries for each [release](https://github.com/atareao/mkdr/releases):
 
 | Platform | Architecture | File |
 |---|---|---|
-| Linux | x86_64 | `mdr-x86_64-unknown-linux-gnu.tar.gz` |
-| Linux | ARM64 | `mdr-aarch64-unknown-linux-gnu.tar.gz` |
-| macOS | Intel | `mdr-x86_64-apple-darwin.tar.gz` |
-| macOS | Apple Silicon | `mdr-aarch64-apple-darwin.tar.gz` |
-| Windows | x86_64 | `mdr-x86_64-pc-windows-msvc.zip` |
+| Linux | x86_64 | `mkdr-x86_64-unknown-linux-gnu.tar.gz` |
+| Linux | ARM64 | `mkdr-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS | Intel | `mkdr-x86_64-apple-darwin.tar.gz` |
+| macOS | Apple Silicon | `mkdr-aarch64-apple-darwin.tar.gz` |
+| Windows | x86_64 | `mkdr-x86_64-pc-windows-msvc.zip` |
 
 Trigger a release by pushing a tag:
 
