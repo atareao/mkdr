@@ -1419,6 +1419,14 @@ mod tests {
     use super::*;
     use crate::theme::Theme;
 
+    macro_rules! snap {
+        ($expr:expr) => {
+            insta::with_settings!({snapshot_path => "../../tests/snapshots"}, {
+                insta::assert_debug_snapshot!($expr);
+            });
+        };
+    }
+
     #[test]
     fn renders_paragraph() {
         let theme = Theme::default_dark();
@@ -1433,7 +1441,7 @@ mod tests {
         let theme = Theme::default_dark();
         let (lines, raw, _, _) = render("**bold** and *italic*", &theme);
         assert_eq!(raw[0], "bold and italic");
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1441,7 +1449,7 @@ mod tests {
         let theme = Theme::default_dark();
         let (lines, raw, _, _) = render("# H1\n## H2\n### H3", &theme);
         assert_eq!(raw.len(), 5);
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1449,7 +1457,7 @@ mod tests {
         let theme = Theme::default_dark();
         let (lines, raw, _, _) = render("Click [here](https://example.com)", &theme);
         assert!(raw[0].contains("Click here"));
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1470,7 +1478,7 @@ mod tests {
         let theme = Theme::default_dark();
         let md = "- outer\n  - inner\n- outer2\n";
         let (lines, _, _, _) = render(md, &theme);
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1479,14 +1487,14 @@ mod tests {
         let md = "> first\n>> second\n>>> third\n";
         let (lines, _, _, _) = render(md, &theme);
         assert!(!lines.is_empty(), "should have at least one line");
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
     fn renders_ordered_list() {
         let theme = Theme::default_dark();
         let (lines, _, _, _) = render("1. one\n2. two\n", &theme);
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1509,7 +1517,7 @@ mod tests {
             !text.is_empty(),
             "should contain task markers: got {lines:?}"
         );
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1519,7 +1527,7 @@ mod tests {
         assert_eq!(lines.len(), 1);
         let text: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
         assert!(text.contains("img.png"), "URL should appear: {text}");
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1527,7 +1535,7 @@ mod tests {
         let theme = Theme::default_dark();
         let (lines, raw, _, _) = render("```rust\nfn main() {}\n```\n", &theme);
         assert!(raw.iter().any(|l| l.contains("fn main()")));
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1536,7 +1544,7 @@ mod tests {
         let md = "| A | B |\n|---|---|\n| 1 | 2 |\n";
         let (lines, _, _, _) = render(md, &theme);
         assert!(lines.len() >= 3);
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1568,14 +1576,14 @@ mod tests {
             "should have border + header + border + rows + border, got {} lines",
             lines.len()
         );
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
     fn renders_unordered_list() {
         let theme = Theme::default_dark();
         let (lines, _, _, _) = render("- item1\n- item2\n", &theme);
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1584,7 +1592,7 @@ mod tests {
         let (lines, raw, _, _) = render("<div>hello</div>", &theme);
         assert_eq!(lines.len(), 1);
         assert!(raw[0].contains("hello"));
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1599,7 +1607,7 @@ mod tests {
         let theme = Theme::default_dark();
         let (lines, raw, _, _) = render("Hello ~~world~~", &theme);
         assert!(raw[0].contains("world"));
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1613,7 +1621,7 @@ mod tests {
             "should have spacing between sections: {} lines",
             lines.len()
         );
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
@@ -1625,7 +1633,7 @@ mod tests {
             code_span.style.bg.is_some(),
             "inline code should have bg color: {code_span:?}"
         );
-        insta::assert_debug_snapshot!(lines);
+        snap!(lines);
     }
 
     #[test]
