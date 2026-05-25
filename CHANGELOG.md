@@ -1,9 +1,15 @@
 # Changelog
+## [0.5.2] - 2026-05-25
+
+### Bug Fixes
+
+- Inline gh api command to avoid multi-arg parsing issue
 ## [0.5.1] - 2026-05-25
 
 ### Miscellaneous Tasks
 
 - Sync development with main after release
+- Release v0.5.1
 ## [0.5.0] - 2026-05-25
 
 ### Bug Fixes
