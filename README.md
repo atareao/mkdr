@@ -122,7 +122,6 @@ Pre-built binaries for each [release](https://github.com/atareao/mkdr/releases):
 |---|---|---|
 | Linux | x86_64 | `mkdr-x86_64-unknown-linux-gnu.tar.gz` |
 | Linux | ARM64 | `mkdr-aarch64-unknown-linux-gnu.tar.gz` |
-| macOS | Intel | `mkdr-x86_64-apple-darwin.tar.gz` |
 | macOS | Apple Silicon | `mkdr-aarch64-apple-darwin.tar.gz` |
 | Windows | x86_64 | `mkdr-x86_64-pc-windows-msvc.zip` |
 

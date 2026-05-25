@@ -15,19 +15,20 @@ cargo run -- <file.md>
 
 ## Toolchain
 
-No `rust-toolchain.toml` — whatever `rustup default` provides. Lockfile is **not** committed (no `Cargo.lock` in repo). If you need a pinned nightly for ratatui features, add a `rust-toolchain.toml`.
+No `rust-toolchain.toml` — whatever `rustup default` provides. Lockfile **is** committed (`Cargo.lock` in repo) as recommended for applications.
 
 ## Dependencies
 
 Add with `cargo add` — do not hand-edit `[dependencies]` unless you have to. Expected key crates:
 
 - `ratatui` — TUI framework
-- `termimad` — markdown → terminal rendering
+- `pulldown-cmark` — markdown → terminal rendering
+- `syntect` — syntax highlighting
 - `clap` — CLI arg parsing (markdown file path, optional paging options)
 
 ## Testing
 
-No tests yet. Test structure should follow convention: `cargo test` runs all. Name tests `test_*` in a `#[cfg(test)] mod tests { ... }` block in the same file as the code under test, or in `tests/` for integration tests.
+Integration tests in `tests/` (snapshot-based with `insta`). Name unit tests `test_*` in a `#[cfg(test)] mod tests { ... }` block in the same file as the code under test. `cargo test` runs all.
 
 ## Git & releases
 
