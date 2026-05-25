@@ -1,12 +1,12 @@
 use pulldown_cmark::{Alignment, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use unicode_width::UnicodeWidthStr;
 use std::sync::OnceLock;
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
+use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
 
@@ -143,7 +143,15 @@ fn strip_frontmatter(content: &str) -> &str {
 /// Parse markdown `content` and produce styled lines, raw text, and link metadata.
 ///
 /// Returns `(styled_lines, raw_lines, wiki_links_per_line, links_per_line)`.
-pub fn render(content: &str, theme: &Theme) -> (Vec<Line<'static>>, Vec<String>, Vec<Vec<WikiLink>>, Vec<Vec<LinkItem>>) {
+pub fn render(
+    content: &str,
+    theme: &Theme,
+) -> (
+    Vec<Line<'static>>,
+    Vec<String>,
+    Vec<Vec<WikiLink>>,
+    Vec<Vec<LinkItem>>,
+) {
     let content = strip_frontmatter(content);
     let processed = preprocess_wiki_links(content);
     let renderer = Renderer::new(theme);
@@ -205,37 +213,145 @@ impl Renderer {
         let def_bg = para.and_then(|(_, bg, _, _, _, _)| bg);
 
         Self {
-            para: ThemeStyle { fg: def_fg, bg: def_bg, ..Default::default() },
-            bold: bold.map(|(fg, bg, b, i, u, s)| ThemeStyle { fg, bg, bold: b, italic: i, underline: u, strikethrough: s })
-                .unwrap_or(ThemeStyle { fg: def_fg, bg: def_bg, bold: true, ..Default::default() }),
-            italic: italic.map(|(fg, bg, b, i, u, s)| ThemeStyle { fg, bg, bold: b, italic: i, underline: u, strikethrough: s })
-                .unwrap_or(ThemeStyle { fg: def_fg, bg: def_bg, italic: true, ..Default::default() }),
-            strike: strike.map(|(fg, bg, b, i, u, s)| ThemeStyle { fg, bg, bold: b, italic: i, underline: u, strikethrough: s })
-                .unwrap_or(ThemeStyle { fg: def_fg, bg: def_bg, strikethrough: true, ..Default::default() }),
-            code: code.map(|(fg, bg, b, i, u, s)| ThemeStyle { fg, bg, bold: b, italic: i, underline: u, strikethrough: s })
-                .unwrap_or(ThemeStyle { fg: Some(Color::Yellow), bg: def_bg, ..Default::default() }),
-            code_block: code_block.map(|(fg, bg, b, i, u, s)| ThemeStyle { fg, bg, bold: b, italic: i, underline: u, strikethrough: s })
-                .unwrap_or(ThemeStyle { fg: def_fg, bg: def_bg, ..Default::default() }),
+            para: ThemeStyle {
+                fg: def_fg,
+                bg: def_bg,
+                ..Default::default()
+            },
+            bold: bold
+                .map(|(fg, bg, b, i, u, s)| ThemeStyle {
+                    fg,
+                    bg,
+                    bold: b,
+                    italic: i,
+                    underline: u,
+                    strikethrough: s,
+                })
+                .unwrap_or(ThemeStyle {
+                    fg: def_fg,
+                    bg: def_bg,
+                    bold: true,
+                    ..Default::default()
+                }),
+            italic: italic
+                .map(|(fg, bg, b, i, u, s)| ThemeStyle {
+                    fg,
+                    bg,
+                    bold: b,
+                    italic: i,
+                    underline: u,
+                    strikethrough: s,
+                })
+                .unwrap_or(ThemeStyle {
+                    fg: def_fg,
+                    bg: def_bg,
+                    italic: true,
+                    ..Default::default()
+                }),
+            strike: strike
+                .map(|(fg, bg, b, i, u, s)| ThemeStyle {
+                    fg,
+                    bg,
+                    bold: b,
+                    italic: i,
+                    underline: u,
+                    strikethrough: s,
+                })
+                .unwrap_or(ThemeStyle {
+                    fg: def_fg,
+                    bg: def_bg,
+                    strikethrough: true,
+                    ..Default::default()
+                }),
+            code: code
+                .map(|(fg, bg, b, i, u, s)| ThemeStyle {
+                    fg,
+                    bg,
+                    bold: b,
+                    italic: i,
+                    underline: u,
+                    strikethrough: s,
+                })
+                .unwrap_or(ThemeStyle {
+                    fg: Some(Color::Yellow),
+                    bg: def_bg,
+                    ..Default::default()
+                }),
+            code_block: code_block
+                .map(|(fg, bg, b, i, u, s)| ThemeStyle {
+                    fg,
+                    bg,
+                    bold: b,
+                    italic: i,
+                    underline: u,
+                    strikethrough: s,
+                })
+                .unwrap_or(ThemeStyle {
+                    fg: def_fg,
+                    bg: def_bg,
+                    ..Default::default()
+                }),
             headings: std::array::from_fn(|i| {
                 let key = format!("heading{}", i + 1);
-                theme.style_for(&key).map(|(fg, bg, b, i, u, s)| ThemeStyle { fg, bg, bold: b, italic: i, underline: u, strikethrough: s })
-                    .unwrap_or(ThemeStyle { fg: def_fg, bg: def_bg, bold: i < 3, ..Default::default() })
+                theme
+                    .style_for(&key)
+                    .map(|(fg, bg, b, i, u, s)| ThemeStyle {
+                        fg,
+                        bg,
+                        bold: b,
+                        italic: i,
+                        underline: u,
+                        strikethrough: s,
+                    })
+                    .unwrap_or(ThemeStyle {
+                        fg: def_fg,
+                        bg: def_bg,
+                        bold: i < 3,
+                        ..Default::default()
+                    })
             }),
-            link: link.map(|(fg, bg, b, i, u, s)| ThemeStyle { fg, bg, bold: b, italic: i, underline: u, strikethrough: s })
-                .unwrap_or(ThemeStyle { fg: Some(Color::Cyan), underline: true, ..Default::default() }),
-            table_border: table_border.map(|(fg, bg, _, _, _, _)| ThemeStyle { fg, bg, ..Default::default() })
-                .unwrap_or(ThemeStyle { fg: Some(Color::DarkGray), ..Default::default() }),
+            link: link
+                .map(|(fg, bg, b, i, u, s)| ThemeStyle {
+                    fg,
+                    bg,
+                    bold: b,
+                    italic: i,
+                    underline: u,
+                    strikethrough: s,
+                })
+                .unwrap_or(ThemeStyle {
+                    fg: Some(Color::Cyan),
+                    underline: true,
+                    ..Default::default()
+                }),
+            table_border: table_border
+                .map(|(fg, bg, _, _, _, _)| ThemeStyle {
+                    fg,
+                    bg,
+                    ..Default::default()
+                })
+                .unwrap_or(ThemeStyle {
+                    fg: Some(Color::DarkGray),
+                    ..Default::default()
+                }),
             bullet,
             quote_mark,
             rule,
         }
     }
 
-    fn render_doc(&self, mut parser: Parser<'_>, lines: &mut Vec<Line<'static>>, raw: &mut Vec<String>, wiki_links: &mut Vec<Vec<WikiLink>>, links: &mut Vec<Vec<LinkItem>>) {
+    fn render_doc(
+        &self,
+        mut parser: Parser<'_>,
+        lines: &mut Vec<Line<'static>>,
+        raw: &mut Vec<String>,
+        wiki_links: &mut Vec<Vec<WikiLink>>,
+        links: &mut Vec<Vec<LinkItem>>,
+    ) {
         let mut list_counters: Vec<(usize, bool)> = Vec::new();
         let mut in_table = false;
         let mut table_data: TableData = TableData::default();
-let mut needs_space = false;
+        let mut needs_space = false;
         let mut quote_depth: usize = 0;
 
         loop {
@@ -250,7 +366,13 @@ let mut needs_space = false;
                         }
                         let mut line_links = Vec::new();
                         let mut line_items = Vec::new();
-                        let spans = self.collect_inline(&mut parser, &TagEnd::Paragraph, &self.para, &mut line_links, &mut line_items);
+                        let spans = self.collect_inline(
+                            &mut parser,
+                            &TagEnd::Paragraph,
+                            &self.para,
+                            &mut line_links,
+                            &mut line_items,
+                        );
                         raw_line(&spans, raw);
                         lines.push(Line::from(spans));
                         wiki_links.push(line_links);
@@ -268,14 +390,20 @@ let mut needs_space = false;
                         let hl = &self.headings[idx];
                         let mut line_links = Vec::new();
                         let mut line_items = Vec::new();
-                        let spans = self.collect_inline(&mut parser, &TagEnd::Heading(level), hl, &mut line_links, &mut line_items);
+                        let spans = self.collect_inline(
+                            &mut parser,
+                            &TagEnd::Heading(level),
+                            hl,
+                            &mut line_links,
+                            &mut line_items,
+                        );
                         raw_line(&spans, raw);
                         lines.push(Line::from(spans));
                         wiki_links.push(line_links);
                         links.push(line_items);
                         needs_space = true;
                     }
-Tag::CodeBlock(kind) => {
+                    Tag::CodeBlock(kind) => {
                         if needs_space {
                             raw.push(String::new());
                             lines.push(Line::from(vec![]));
@@ -288,7 +416,9 @@ Tag::CodeBlock(kind) => {
                             raw.push(info.to_string());
                             lines.push(Line::from(Span::styled(
                                 format!(" {} ", info),
-                                Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD),
+                                Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::BOLD),
                             )));
                             wiki_links.push(Vec::new());
                             links.push(Vec::new());
@@ -297,7 +427,9 @@ Tag::CodeBlock(kind) => {
                         if let CodeBlockKind::Fenced(info) = kind
                             && !info.is_empty()
                         {
-                            for (mut spans, raw_text) in highlight_code(&info, &code, self.code_block.bg) {
+                            for (mut spans, raw_text) in
+                                highlight_code(&info, &code, self.code_block.bg)
+                            {
                                 spans.insert(0, Span::raw("  "));
                                 raw.push(format!("  {}", raw_text));
                                 lines.push(Line::from(spans));
@@ -317,7 +449,7 @@ Tag::CodeBlock(kind) => {
                         }
                         needs_space = true;
                     }
-Tag::List(start) => {
+                    Tag::List(start) => {
                         if needs_space {
                             raw.push(String::new());
                             lines.push(Line::from(vec![]));
@@ -341,7 +473,8 @@ Tag::List(start) => {
                                 marker,
                                 Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
                             );
-                            let (mut item_spans, mut item_links, mut item_link_items, children) = self.collect_item_inline(&mut parser, &mut list_counters);
+                            let (mut item_spans, mut item_links, mut item_link_items, children) =
+                                self.collect_item_inline(&mut parser, &mut list_counters);
                             for link in &mut item_links {
                                 link.col += prefix_width;
                             }
@@ -353,7 +486,8 @@ Tag::List(start) => {
                             lines.push(Line::from(item_spans));
                             wiki_links.push(item_links);
                             links.push(item_link_items);
-                            for (child_spans, child_raw, child_links, child_link_items) in children {
+                            for (child_spans, child_raw, child_links, child_link_items) in children
+                            {
                                 raw.push(child_raw);
                                 lines.push(Line::from(child_spans));
                                 wiki_links.push(child_links);
@@ -363,20 +497,25 @@ Tag::List(start) => {
                     }
                     Tag::Table(alignments) => {
                         in_table = true;
-                        table_data = TableData { alignments, ..Default::default() };
+                        table_data = TableData {
+                            alignments,
+                            ..Default::default()
+                        };
                     }
                     Tag::TableHead => {
-                            let mut table_links = Vec::new();
-                            let mut table_items = Vec::new();
-                            let row = self.collect_table_row(&mut parser, &mut table_links, &mut table_items);
-                            table_data.headers = row;
-                        }
+                        let mut table_links = Vec::new();
+                        let mut table_items = Vec::new();
+                        let row =
+                            self.collect_table_row(&mut parser, &mut table_links, &mut table_items);
+                        table_data.headers = row;
+                    }
                     Tag::TableRow => {
-                            let mut table_links = Vec::new();
-                            let mut table_items = Vec::new();
-                            let row = self.collect_table_row(&mut parser, &mut table_links, &mut table_items);
-                            table_data.rows.push(row);
-                        }
+                        let mut table_links = Vec::new();
+                        let mut table_items = Vec::new();
+                        let row =
+                            self.collect_table_row(&mut parser, &mut table_links, &mut table_items);
+                        table_data.rows.push(row);
+                    }
                     Tag::BlockQuote(_) => {
                         quote_depth += 1;
                         if needs_space {
@@ -387,7 +526,14 @@ Tag::List(start) => {
                         }
                         let mut line_links = Vec::new();
                         let mut line_items = Vec::new();
-                        let spans = self.collect_inline_with_breaks(&mut parser, &TagEnd::BlockQuote(None), &self.para, true, &mut line_links, &mut line_items);
+                        let spans = self.collect_inline_with_breaks(
+                            &mut parser,
+                            &TagEnd::BlockQuote(None),
+                            &self.para,
+                            true,
+                            &mut line_links,
+                            &mut line_items,
+                        );
                         let mut line_groups: Vec<Vec<Span<'static>>> = vec![Vec::new()];
                         let mut link_groups: Vec<Vec<WikiLink>> = vec![Vec::new()];
                         let mut item_groups: Vec<Vec<LinkItem>> = vec![Vec::new()];
@@ -415,11 +561,14 @@ Tag::List(start) => {
                             link_groups.push(Vec::new());
                             item_groups.push(Vec::new());
                         }
-                        let quote_color = self.quote_mark.unwrap_or(QUOTE_COLORS[(quote_depth - 1) % QUOTE_COLORS.len()]);
+                        let quote_color = self
+                            .quote_mark
+                            .unwrap_or(QUOTE_COLORS[(quote_depth - 1) % QUOTE_COLORS.len()]);
                         let mark_style = Style::default().fg(quote_color);
                         for (gi, group) in line_groups.iter().enumerate() {
                             raw_line(group, raw);
-                            let mut quoted = vec![Span::styled(format!("{} ", QUOTE_CHAR), mark_style)];
+                            let mut quoted =
+                                vec![Span::styled(format!("{} ", QUOTE_CHAR), mark_style)];
                             quoted.extend(group.iter().cloned());
                             lines.push(Line::from(quoted));
                             let wl = link_groups.get(gi).cloned().unwrap_or_default();
@@ -443,32 +592,32 @@ Tag::List(start) => {
                         quote_depth = quote_depth.saturating_sub(1);
                     }
                     TagEnd::Table if in_table => {
-                            if needs_space {
+                        if needs_space {
                             raw.push(String::new());
                             lines.push(Line::from(vec![]));
                             wiki_links.push(Vec::new());
                             links.push(Vec::new());
                         }
-                            in_table = false;
-                            let table_line_count_before = lines.len();
-                            self.render_table(&table_data, lines, raw);
-                            for _ in table_line_count_before..lines.len() {
-                                wiki_links.push(Vec::new());
-                                links.push(Vec::new());
-                            }
-                            needs_space = true;
+                        in_table = false;
+                        let table_line_count_before = lines.len();
+                        self.render_table(&table_data, lines, raw);
+                        for _ in table_line_count_before..lines.len() {
+                            wiki_links.push(Vec::new());
+                            links.push(Vec::new());
                         }
+                        needs_space = true;
+                    }
                     TagEnd::TableHead | TagEnd::TableRow | TagEnd::TableCell => {}
                     TagEnd::Paragraph => {}
                     _ => {}
                 },
                 Some(Event::Rule) => {
                     if needs_space {
-                            raw.push(String::new());
-                            lines.push(Line::from(vec![]));
+                        raw.push(String::new());
+                        lines.push(Line::from(vec![]));
                         wiki_links.push(Vec::new());
                         links.push(Vec::new());
-                        }
+                    }
                     raw.push(String::new());
                     lines.push(Line::from(Span::styled(
                         "─".repeat(RULE_WIDTH),
@@ -496,7 +645,14 @@ Tag::List(start) => {
         }
     }
 
-    fn collect_inline(&self, events: &mut Parser<'_>, end_tag: &TagEnd, base: &ThemeStyle, wiki_links: &mut Vec<WikiLink>, links: &mut Vec<LinkItem>) -> Vec<Span<'static>> {
+    fn collect_inline(
+        &self,
+        events: &mut Parser<'_>,
+        end_tag: &TagEnd,
+        base: &ThemeStyle,
+        wiki_links: &mut Vec<WikiLink>,
+        links: &mut Vec<LinkItem>,
+    ) -> Vec<Span<'static>> {
         self.collect_inline_with_breaks(events, end_tag, base, false, wiki_links, links)
     }
 
@@ -519,21 +675,42 @@ Tag::List(start) => {
                     col += flush_buf(&mut buf, &mut spans, base);
                     match tag {
                         Tag::Emphasis => {
-                            let child = self.collect_inline_with_breaks(events, &TagEnd::Emphasis, &self.italic, preserve_breaks, wiki_links, links);
+                            let child = self.collect_inline_with_breaks(
+                                events,
+                                &TagEnd::Emphasis,
+                                &self.italic,
+                                preserve_breaks,
+                                wiki_links,
+                                links,
+                            );
                             for span in &child {
                                 col += span.content.width();
                             }
                             spans.extend(child);
                         }
                         Tag::Strong => {
-                            let child = self.collect_inline_with_breaks(events, &TagEnd::Strong, &self.bold, preserve_breaks, wiki_links, links);
+                            let child = self.collect_inline_with_breaks(
+                                events,
+                                &TagEnd::Strong,
+                                &self.bold,
+                                preserve_breaks,
+                                wiki_links,
+                                links,
+                            );
                             for span in &child {
                                 col += span.content.width();
                             }
                             spans.extend(child);
                         }
                         Tag::Strikethrough => {
-                            let child = self.collect_inline_with_breaks(events, &TagEnd::Strikethrough, &self.strike, preserve_breaks, wiki_links, links);
+                            let child = self.collect_inline_with_breaks(
+                                events,
+                                &TagEnd::Strikethrough,
+                                &self.strike,
+                                preserve_breaks,
+                                wiki_links,
+                                links,
+                            );
                             for span in &child {
                                 col += span.content.width();
                             }
@@ -541,9 +718,17 @@ Tag::List(start) => {
                         }
                         Tag::Link { ref dest_url, .. } => {
                             let link_col = col;
-                            let mut child = self.collect_inline_with_breaks(events, &TagEnd::Link, &self.link, preserve_breaks, wiki_links, links);
+                            let mut child = self.collect_inline_with_breaks(
+                                events,
+                                &TagEnd::Link,
+                                &self.link,
+                                preserve_breaks,
+                                wiki_links,
+                                links,
+                            );
                             if let Some(target) = dest_url.strip_prefix("wikilink://") {
-                                let title_text: String = child.iter().map(|s| s.content.as_ref()).collect();
+                                let title_text: String =
+                                    child.iter().map(|s| s.content.as_ref()).collect();
                                 wiki_links.push(WikiLink {
                                     target: target.to_string(),
                                     title: title_text,
@@ -571,7 +756,14 @@ Tag::List(start) => {
                         }
                         Tag::Image { ref dest_url, .. } => {
                             let img_col = col;
-                            let child = self.collect_inline_with_breaks(events, &TagEnd::Image, &self.para, preserve_breaks, wiki_links, links);
+                            let child = self.collect_inline_with_breaks(
+                                events,
+                                &TagEnd::Image,
+                                &self.para,
+                                preserve_breaks,
+                                wiki_links,
+                                links,
+                            );
                             let icon = Span::styled(
                                 "🖼 ".to_string(),
                                 Style::default().fg(Color::DarkGray),
@@ -626,9 +818,7 @@ Tag::List(start) => {
                     let color = if checked { Color::Green } else { Color::Red };
                     spans.push(Span::styled(
                         icon.to_string(),
-                        Style::default()
-                            .fg(color)
-                            .add_modifier(Modifier::BOLD),
+                        Style::default().fg(color).add_modifier(Modifier::BOLD),
                     ));
                     col += icon.width();
                     spans.push(Span::raw(" "));
@@ -655,12 +845,23 @@ Tag::List(start) => {
         code
     }
 
-    fn collect_table_row(&self, events: &mut Parser<'_>, wiki_links: &mut Vec<WikiLink>, links: &mut Vec<LinkItem>) -> Vec<Vec<Span<'static>>> {
+    fn collect_table_row(
+        &self,
+        events: &mut Parser<'_>,
+        wiki_links: &mut Vec<WikiLink>,
+        links: &mut Vec<LinkItem>,
+    ) -> Vec<Vec<Span<'static>>> {
         let mut row: Vec<Vec<Span<'static>>> = Vec::new();
         loop {
             match events.next() {
                 Some(Event::Start(Tag::TableCell)) => {
-                    let spans = self.collect_inline(events, &TagEnd::TableCell, &self.para, wiki_links, links);
+                    let spans = self.collect_inline(
+                        events,
+                        &TagEnd::TableCell,
+                        &self.para,
+                        wiki_links,
+                        links,
+                    );
                     row.push(spans);
                 }
                 Some(Event::End(TagEnd::TableRow)) => break,
@@ -705,7 +906,15 @@ Tag::List(start) => {
 
         // Header
         if !data.headers.is_empty() {
-            self.push_table_row(&data.headers, &col_widths, lines, raw, &b, &data.alignments, true);
+            self.push_table_row(
+                &data.headers,
+                &col_widths,
+                lines,
+                raw,
+                &b,
+                &data.alignments,
+                true,
+            );
             lines.push(self.table_border_line(&col_widths, "├", "┼", "┤", &b));
             raw.push(String::new());
         }
@@ -803,11 +1012,17 @@ Tag::List(start) => {
         &self,
         events: &mut Parser<'_>,
         list_counters: &mut Vec<(usize, bool)>,
-    ) -> (Vec<Span<'static>>, Vec<WikiLink>, Vec<LinkItem>, Vec<(Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>)>) {
+    ) -> (
+        Vec<Span<'static>>,
+        Vec<WikiLink>,
+        Vec<LinkItem>,
+        Vec<(Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>)>,
+    ) {
         let mut spans: Vec<Span<'static>> = Vec::new();
         let mut wiki_links: Vec<WikiLink> = Vec::new();
         let mut link_items: Vec<LinkItem> = Vec::new();
-        let mut children: Vec<(Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>)> = Vec::new();
+        let mut children: Vec<(Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>)> =
+            Vec::new();
         let mut buf = String::new();
         let base = &self.para;
         let mut col: usize = 0;
@@ -818,21 +1033,39 @@ Tag::List(start) => {
                     col += flush_buf(&mut buf, &mut spans, base);
                     match tag {
                         Tag::Emphasis => {
-                            let child = self.collect_inline(events, &TagEnd::Emphasis, &self.italic, &mut wiki_links, &mut link_items);
+                            let child = self.collect_inline(
+                                events,
+                                &TagEnd::Emphasis,
+                                &self.italic,
+                                &mut wiki_links,
+                                &mut link_items,
+                            );
                             for span in &child {
                                 col += span.content.width();
                             }
                             spans.extend(child);
                         }
                         Tag::Strong => {
-                            let child = self.collect_inline(events, &TagEnd::Strong, &self.bold, &mut wiki_links, &mut link_items);
+                            let child = self.collect_inline(
+                                events,
+                                &TagEnd::Strong,
+                                &self.bold,
+                                &mut wiki_links,
+                                &mut link_items,
+                            );
                             for span in &child {
                                 col += span.content.width();
                             }
                             spans.extend(child);
                         }
                         Tag::Strikethrough => {
-                            let child = self.collect_inline(events, &TagEnd::Strikethrough, &self.strike, &mut wiki_links, &mut link_items);
+                            let child = self.collect_inline(
+                                events,
+                                &TagEnd::Strikethrough,
+                                &self.strike,
+                                &mut wiki_links,
+                                &mut link_items,
+                            );
                             for span in &child {
                                 col += span.content.width();
                             }
@@ -840,18 +1073,29 @@ Tag::List(start) => {
                         }
                         Tag::Link { ref dest_url, .. } => {
                             let link_col = col;
-                            let mut child = self.collect_inline(events, &TagEnd::Link, &self.link, &mut wiki_links, &mut link_items);
+                            let mut child = self.collect_inline(
+                                events,
+                                &TagEnd::Link,
+                                &self.link,
+                                &mut wiki_links,
+                                &mut link_items,
+                            );
                             if let Some(target) = dest_url.strip_prefix("wikilink://") {
-                                let title_text: String = child.iter().map(|s| s.content.as_ref()).collect();
+                                let title_text: String =
+                                    child.iter().map(|s| s.content.as_ref()).collect();
                                 wiki_links.push(WikiLink {
                                     target: target.to_string(),
                                     title: title_text,
                                     col: link_col,
                                 });
-                                let url_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                                let url_style = Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::DIM);
                                 child.push(Span::styled(format!(" ─ {}", target), url_style));
                             } else if !dest_url.is_empty() {
-                                let url_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                                let url_style = Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::DIM);
                                 child.push(Span::styled(format!(" ─ {}", dest_url), url_style));
                                 link_items.push(LinkItem {
                                     url: dest_url.to_string(),
@@ -866,13 +1110,24 @@ Tag::List(start) => {
                         }
                         Tag::Image { ref dest_url, .. } => {
                             let img_col = col;
-                            let child = self.collect_inline(events, &TagEnd::Image, base, &mut wiki_links, &mut link_items);
-                            let icon = Span::styled("🖼 ".to_string(), Style::default().fg(Color::DarkGray));
+                            let child = self.collect_inline(
+                                events,
+                                &TagEnd::Image,
+                                base,
+                                &mut wiki_links,
+                                &mut link_items,
+                            );
+                            let icon = Span::styled(
+                                "🖼 ".to_string(),
+                                Style::default().fg(Color::DarkGray),
+                            );
                             col += 2;
                             spans.push(icon);
                             spans.extend(child);
                             if !dest_url.is_empty() {
-                                let url_style = Style::default().fg(Color::DarkGray).add_modifier(Modifier::DIM);
+                                let url_style = Style::default()
+                                    .fg(Color::DarkGray)
+                                    .add_modifier(Modifier::DIM);
                                 let url_span = Span::styled(format!(" ─ {}", dest_url), url_style);
                                 col += dest_url.width() + 2;
                                 spans.push(url_span);
@@ -887,7 +1142,13 @@ Tag::List(start) => {
                             children.extend(self.render_nested_list(events, list_counters, start));
                         }
                         Tag::Paragraph => {
-                            let child = self.collect_inline(events, &TagEnd::Paragraph, &self.para, &mut wiki_links, &mut link_items);
+                            let child = self.collect_inline(
+                                events,
+                                &TagEnd::Paragraph,
+                                &self.para,
+                                &mut wiki_links,
+                                &mut link_items,
+                            );
                             for span in &child {
                                 col += span.content.width();
                             }
@@ -918,7 +1179,10 @@ Tag::List(start) => {
                     col += flush_buf(&mut buf, &mut spans, base);
                     let icon = if checked { "☑" } else { "☐" };
                     let color = if checked { Color::Green } else { Color::Red };
-                    spans.push(Span::styled(icon.to_string(), Style::default().fg(color).add_modifier(Modifier::BOLD)));
+                    spans.push(Span::styled(
+                        icon.to_string(),
+                        Style::default().fg(color).add_modifier(Modifier::BOLD),
+                    ));
                     col += icon.width();
                     spans.push(Span::raw(" "));
                     col += 1;
@@ -956,7 +1220,8 @@ Tag::List(start) => {
                             marker,
                             Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
                         );
-                        let (mut item_spans, mut item_links, mut item_link_items, grandchildren) = self.collect_item_inline(events, list_counters);
+                        let (mut item_spans, mut item_links, mut item_link_items, grandchildren) =
+                            self.collect_item_inline(events, list_counters);
                         for link in &mut item_links {
                             link.col += prefix_width;
                         }
@@ -964,9 +1229,11 @@ Tag::List(start) => {
                             item.col += prefix_width;
                         }
                         item_spans.insert(0, prefix);
-                        let raw_text: String = item_spans.iter().map(|s| s.content.as_ref()).collect();
+                        let raw_text: String =
+                            item_spans.iter().map(|s| s.content.as_ref()).collect();
                         items.push((item_spans, raw_text, item_links, item_link_items));
-                        for (child_spans, child_raw, child_links, child_link_items) in grandchildren {
+                        for (child_spans, child_raw, child_links, child_link_items) in grandchildren
+                        {
                             items.push((child_spans, child_raw, child_links, child_link_items));
                         }
                     }
@@ -1031,7 +1298,11 @@ impl ThemeStyle {
     }
 }
 
-fn highlight_code(language: &str, code: &str, bg: Option<Color>) -> Vec<(Vec<Span<'static>>, String)> {
+fn highlight_code(
+    language: &str,
+    code: &str,
+    bg: Option<Color>,
+) -> Vec<(Vec<Span<'static>>, String)> {
     static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
     static THEME: OnceLock<syntect::highlighting::Theme> = OnceLock::new();
 
@@ -1062,18 +1333,30 @@ fn highlight_code(language: &str, code: &str, bg: Option<Color>) -> Vec<(Vec<Spa
         let mut raw_text = String::new();
 
         for (style, text) in &highlighted {
-            let mut s = Style::default()
-                .fg(Color::Rgb(style.foreground.r, style.foreground.g, style.foreground.b));
+            let mut s = Style::default().fg(Color::Rgb(
+                style.foreground.r,
+                style.foreground.g,
+                style.foreground.b,
+            ));
             if let Some(bg_color) = bg {
                 s = s.bg(bg_color);
             }
-            if style.font_style.contains(syntect::highlighting::FontStyle::BOLD) {
+            if style
+                .font_style
+                .contains(syntect::highlighting::FontStyle::BOLD)
+            {
                 s = s.add_modifier(Modifier::BOLD);
             }
-            if style.font_style.contains(syntect::highlighting::FontStyle::ITALIC) {
+            if style
+                .font_style
+                .contains(syntect::highlighting::FontStyle::ITALIC)
+            {
                 s = s.add_modifier(Modifier::ITALIC);
             }
-            if style.font_style.contains(syntect::highlighting::FontStyle::UNDERLINE) {
+            if style
+                .font_style
+                .contains(syntect::highlighting::FontStyle::UNDERLINE)
+            {
                 s = s.add_modifier(Modifier::UNDERLINED);
             }
             spans.push(Span::styled(text.to_string(), s));
@@ -1134,8 +1417,7 @@ fn end_of(tag: &Tag) -> TagEnd {
 #[cfg(test)]
 mod tests {
     use super::*;
-use crate::theme::Theme;
-
+    use crate::theme::Theme;
 
     #[test]
     fn renders_paragraph() {
@@ -1177,7 +1459,10 @@ use crate::theme::Theme;
         let (lines, raw, _, _) = render(md, &theme);
         assert!(raw[0].contains("Click here"));
         let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
-        assert!(rendered.contains("example.com"), "URL should appear in: {rendered}");
+        assert!(
+            rendered.contains("example.com"),
+            "URL should appear in: {rendered}"
+        );
     }
 
     #[test]
@@ -1209,10 +1494,21 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let md = "- [x] done\n- [ ] todo\n";
         let (lines, _, _, _) = render(md, &theme);
-        let text: String = lines[0].spans.iter().filter_map(|s| {
-            if s.content.contains('☑') || s.content.contains('☐') { Some(s.content.as_ref().to_string()) } else { None }
-        }).collect();
-        assert!(!text.is_empty(), "should contain task markers: got {lines:?}");
+        let text: String = lines[0]
+            .spans
+            .iter()
+            .filter_map(|s| {
+                if s.content.contains('☑') || s.content.contains('☐') {
+                    Some(s.content.as_ref().to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(
+            !text.is_empty(),
+            "should contain task markers: got {lines:?}"
+        );
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -1251,15 +1547,13 @@ use crate::theme::Theme;
 
         let text: String = lines[3].spans.iter().map(|s| s.content.as_ref()).collect();
         assert_eq!(
-            text,
-            "│a     │  b     │    c  │",
+            text, "│a     │  b     │    c  │",
             "data row alignment: got '{text}'"
         );
 
         let border: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
         assert_eq!(
-            border,
-            "┌──────┬────────┬───────┐",
+            border, "┌──────┬────────┬───────┐",
             "top border: got '{border}'"
         );
     }
@@ -1269,7 +1563,11 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let md = "| Name  | Age | City    |\n|-------|-----|---------|\n| Alice | 30  | Madrid  |\n| Bob   | 25  | París   |\n| Carol | 35  | Roma    |\n";
         let (lines, _, _, _) = render(md, &theme);
-        assert!(lines.len() >= 5, "should have border + header + border + rows + border, got {} lines", lines.len());
+        assert!(
+            lines.len() >= 5,
+            "should have border + header + border + rows + border, got {} lines",
+            lines.len()
+        );
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -1310,7 +1608,11 @@ use crate::theme::Theme;
         let md = "# Title\n\nHello world.\n\n> A quote.\n\n- item\n\n```\ncode\n```\n";
         let (lines, _, _, _) = render(md, &theme);
         // Title, blank, para, blank, quote, blank, list, blank, code
-        assert!(lines.len() > 3, "should have spacing between sections: {} lines", lines.len());
+        assert!(
+            lines.len() > 3,
+            "should have spacing between sections: {} lines",
+            lines.len()
+        );
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -1319,7 +1621,10 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let (lines, _, _, _) = render("Use `code` here", &theme);
         let code_span = &lines[0].spans[1];
-        assert!(code_span.style.bg.is_some(), "inline code should have bg color: {code_span:?}");
+        assert!(
+            code_span.style.bg.is_some(),
+            "inline code should have bg color: {code_span:?}"
+        );
         insta::assert_debug_snapshot!(lines);
     }
 
@@ -1327,34 +1632,46 @@ use crate::theme::Theme;
     fn wiki_link_paragraph() {
         let theme = Theme::default_dark();
         let (lines, _, wiki_links, _) = render("before [[target]] after", &theme);
-        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
-            "Expected wiki link in paragraph, got wiki_links={wiki_links:?}");
+        assert!(
+            !wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link in paragraph, got wiki_links={wiki_links:?}"
+        );
         let link = &wiki_links[0][0];
         assert_eq!(link.target, "target");
         assert_eq!(link.title, "target");
         let text: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
-        assert!(text.contains("target ─ target"), "Expected rendered text to contain 'target ─ target', got: {text}");
+        assert!(
+            text.contains("target ─ target"),
+            "Expected rendered text to contain 'target ─ target', got: {text}"
+        );
     }
 
     #[test]
     fn wiki_link_with_title() {
         let theme = Theme::default_dark();
         let (lines, _, wiki_links, _) = render("before [[target|Title]] after", &theme);
-        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
-            "Expected wiki link with title, got wiki_links={wiki_links:?}");
+        assert!(
+            !wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link with title, got wiki_links={wiki_links:?}"
+        );
         let link = &wiki_links[0][0];
         assert_eq!(link.target, "target");
         assert_eq!(link.title, "Title");
         let text: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
-        assert!(text.contains("Title ─ target"), "Expected 'Title ─ target', got: {text}");
+        assert!(
+            text.contains("Title ─ target"),
+            "Expected 'Title ─ target', got: {text}"
+        );
     }
 
     #[test]
     fn wiki_link_in_list() {
         let theme = Theme::default_dark();
         let (_, _, wiki_links, _) = render("- [[target|Title]]\n", &theme);
-        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
-            "Expected wiki link in list, got wiki_links={wiki_links:?}");
+        assert!(
+            !wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link in list, got wiki_links={wiki_links:?}"
+        );
         let link = &wiki_links[0][0];
         assert_eq!(link.target, "target");
         assert_eq!(link.title, "Title");
@@ -1365,7 +1682,12 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let md = "[[a]] and [[b|Bee]]\n";
         let (_, _, wiki_links, _) = render(md, &theme);
-        assert_eq!(wiki_links[0].len(), 2, "Expected 2 wiki links, got {:?}", wiki_links[0]);
+        assert_eq!(
+            wiki_links[0].len(),
+            2,
+            "Expected 2 wiki links, got {:?}",
+            wiki_links[0]
+        );
         assert_eq!(wiki_links[0][0].target, "a");
         assert_eq!(wiki_links[0][1].target, "b");
         assert_eq!(wiki_links[0][1].title, "Bee");
@@ -1375,11 +1697,25 @@ use crate::theme::Theme;
     fn wiki_link_inside_code_block_unaffected() {
         let theme = Theme::default_dark();
         let (lines, _, wiki_links, _) = render("```\n[[not a link]]\n```\n", &theme);
-    // code blocks should have no wiki_links
+        // code blocks should have no wiki_links
         let any_wiki = wiki_links.iter().any(|wl| !wl.is_empty());
-        assert!(!any_wiki, "Code block should not contain wiki links, got {wiki_links:?}");
-        let code_text: String = lines.iter().map(|l| l.spans.iter().map(|s| s.content.as_ref()).collect::<String>()).collect();
-        assert!(code_text.contains("[[not a link]]"), "Code block should preserve [[...]] text, got: {code_text}");
+        assert!(
+            !any_wiki,
+            "Code block should not contain wiki links, got {wiki_links:?}"
+        );
+        let code_text: String = lines
+            .iter()
+            .map(|l| {
+                l.spans
+                    .iter()
+                    .map(|s| s.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect();
+        assert!(
+            code_text.contains("[[not a link]]"),
+            "Code block should preserve [[...]] text, got: {code_text}"
+        );
     }
 
     #[test]
@@ -1387,11 +1723,16 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let input = "Temática: íñçáé — «comillas» — año 2026";
         let (lines, raw, _, _) = render(input, &theme);
-        assert_eq!(raw[0], input,
-            "Non-ASCII characters should be preserved exactly. raw[0]={:?}", raw[0]);
+        assert_eq!(
+            raw[0], input,
+            "Non-ASCII characters should be preserved exactly. raw[0]={:?}",
+            raw[0]
+        );
         let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
-        assert_eq!(rendered, input,
-            "Rendered text should match input. got={rendered:?}");
+        assert_eq!(
+            rendered, input,
+            "Rendered text should match input. got={rendered:?}"
+        );
     }
 
     #[test]
@@ -1399,14 +1740,18 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let input = "[[archivo|Título con acento]]";
         let (lines, _, wiki_links, _) = render(input, &theme);
-        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
-            "Expected wiki link, got {wiki_links:?}");
+        assert!(
+            !wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link, got {wiki_links:?}"
+        );
         let link = &wiki_links[0][0];
         assert_eq!(link.target, "archivo");
         assert_eq!(link.title, "Título con acento");
         let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
-        assert!(rendered.contains("Título con acento ─ archivo"),
-            "Rendered should contain 'Título con acento ─ archivo', got: {rendered}");
+        assert!(
+            rendered.contains("Título con acento ─ archivo"),
+            "Rendered should contain 'Título con acento ─ archivo', got: {rendered}"
+        );
     }
 
     #[test]
@@ -1414,26 +1759,40 @@ use crate::theme::Theme;
         let theme = Theme::default_dark();
         let input = "# RAG, MCP y Skills: El Trío Definitivo";
         let (lines, raw, _, _) = render(input, &theme);
-        assert!(raw[0].contains("Trío"),
-            "Heading should preserve 'Trío', got raw={:?}", raw);
+        assert!(
+            raw[0].contains("Trío"),
+            "Heading should preserve 'Trío', got raw={:?}",
+            raw
+        );
         let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
-        assert!(rendered.contains("Trío"),
-            "Rendered heading should contain 'Trío', got: {rendered}");
+        assert!(
+            rendered.contains("Trío"),
+            "Rendered heading should contain 'Trío', got: {rendered}"
+        );
     }
 
     #[test]
     fn wiki_link_target_with_spaces() {
         let theme = Theme::default_dark();
-        let (lines, _, wiki_links, _) = render("- [[_Aventuras de un tiburón|Aventuras de un tiburón]]\n", &theme);
-        assert!(!wiki_links.is_empty() && !wiki_links[0].is_empty(),
-            "Expected wiki link with spaces in target, got {wiki_links:?}");
+        let (lines, _, wiki_links, _) = render(
+            "- [[_Aventuras de un tiburón|Aventuras de un tiburón]]\n",
+            &theme,
+        );
+        assert!(
+            !wiki_links.is_empty() && !wiki_links[0].is_empty(),
+            "Expected wiki link with spaces in target, got {wiki_links:?}"
+        );
         let link = &wiki_links[0][0];
         assert_eq!(link.target, "_Aventuras de un tiburón");
         assert_eq!(link.title, "Aventuras de un tiburón");
         let rendered: String = lines[0].spans.iter().map(|s| s.content.as_ref()).collect();
-        assert!(rendered.contains("Aventuras de un tiburón ─ _Aventuras de un tiburón"),
-            "Expected rendered text, got: {rendered}");
-        assert!(!rendered.contains("[Aventuras"),
-            "Should NOT contain raw markdown link syntax '[...](...'), got: {rendered}");
+        assert!(
+            rendered.contains("Aventuras de un tiburón ─ _Aventuras de un tiburón"),
+            "Expected rendered text, got: {rendered}"
+        );
+        assert!(
+            !rendered.contains("[Aventuras"),
+            "Should NOT contain raw markdown link syntax '[...](...'), got: {rendered}"
+        );
     }
 }

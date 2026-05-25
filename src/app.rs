@@ -4,16 +4,16 @@ use std::path::PathBuf;
 use std::time::SystemTime;
 
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Terminal;
 
+use crate::render::{self, LinkItem, WikiLink};
 use crate::search::{find_next_match, find_prev_match, highlight_line, search_lines};
 use crate::theme::Theme;
-use crate::render::{self, LinkItem, WikiLink};
 
 /// How text wrapping behaves in the TUI viewport.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -219,7 +219,8 @@ impl App {
                 String::new()
             }
         };
-        self.file_state.last_modified = std::fs::metadata(path).ok().and_then(|m| m.modified().ok());
+        self.file_state.last_modified =
+            std::fs::metadata(path).ok().and_then(|m| m.modified().ok());
         self.refresh_file_name();
         self.render_content();
     }
@@ -229,17 +230,23 @@ impl App {
         self.search.search_results = if self.search.search_query.is_empty() {
             Vec::new()
         } else {
-            self.search_lines_for_mode( &self.search.search_query)
+            self.search_lines_for_mode(&self.search.search_query)
         };
     }
 
     fn render_content(&mut self) {
-        let (styled_lines, raw, wiki_links, links) = render::render(&self.rendered.content, &self.theme);
+        let (styled_lines, raw, wiki_links, links) =
+            render::render(&self.rendered.content, &self.theme);
         self.rendered.lines = styled_lines;
         self.rendered.raw_lines = raw;
         self.rendered.wiki_links = wiki_links;
         self.rendered.links = links;
-        self.rendered.content_lower_lines = self.rendered.content.lines().map(str::to_lowercase).collect();
+        self.rendered.content_lower_lines = self
+            .rendered
+            .content
+            .lines()
+            .map(str::to_lowercase)
+            .collect();
         self.view.max_scroll = self.rendered.lines.len().saturating_sub(1);
         self.view.scroll = self.view.scroll.min(self.view.max_scroll);
         self.view.cursor_line = self.view.cursor_line.min(self.view.max_scroll);
@@ -261,15 +268,22 @@ impl App {
 
     fn line_width(&self, line: usize) -> u16 {
         if self.view.raw_mode {
-            self.rendered.content
+            self.rendered
+                .content
                 .lines()
                 .nth(line)
                 .map(|l| l.len() as u16)
                 .unwrap_or(0)
         } else {
-            self.rendered.lines
+            self.rendered
+                .lines
                 .get(line)
-                .map(|l| l.spans.iter().map(|s| s.content.as_ref().len() as u16).sum())
+                .map(|l| {
+                    l.spans
+                        .iter()
+                        .map(|s| s.content.as_ref().len() as u16)
+                        .sum()
+                })
                 .unwrap_or(0)
         }
     }
@@ -302,7 +316,9 @@ impl App {
 
     fn refresh_file_name(&mut self) {
         self.file_state.file_name = if !self.file_state.files.is_empty() {
-            self.file_state.files[self.file_state.file_index].display().to_string()
+            self.file_state.files[self.file_state.file_index]
+                .display()
+                .to_string()
         } else {
             String::new()
         };
@@ -386,7 +402,8 @@ impl App {
             })
         });
 
-        let mut paragraph = Paragraph::new(display_lines).scroll((self.view.scroll as u16, self.view.h_scroll));
+        let mut paragraph =
+            Paragraph::new(display_lines).scroll((self.view.scroll as u16, self.view.h_scroll));
         if has_table {
             // disable wrapping when tables are visible
         } else if self.view.wrap_mode == WrapMode::Word {
@@ -408,9 +425,13 @@ impl App {
             } else {
                 0
             } as u16;
-            let screen_y = content_area.y + self.view.cursor_line.saturating_sub(self.view.scroll) as u16;
-            let screen_x = content_area.x + line_num_width + self.view.cursor_col.saturating_sub(self.view.h_scroll);
-            if screen_y < content_area.bottom() && screen_x < content_area.right()
+            let screen_y =
+                content_area.y + self.view.cursor_line.saturating_sub(self.view.scroll) as u16;
+            let screen_x = content_area.x
+                + line_num_width
+                + self.view.cursor_col.saturating_sub(self.view.h_scroll);
+            if screen_y < content_area.bottom()
+                && screen_x < content_area.right()
                 && let Some(cell) = f.buffer_mut().cell_mut((screen_x, screen_y))
             {
                 std::mem::swap(&mut cell.fg, &mut cell.bg);
@@ -424,7 +445,8 @@ impl App {
     }
 
     fn build_styled_lines(&self) -> Vec<Line<'static>> {
-        self.rendered.lines
+        self.rendered
+            .lines
             .iter()
             .enumerate()
             .map(|(i, line)| {
@@ -478,12 +500,25 @@ impl App {
             let match_info = match self.search.search_idx {
                 Some(idx) => {
                     if let Some(pos) = self.search.search_results.iter().position(|&r| r == idx) {
-                        format!(" \"{}\" [{}/{}] ", self.search.search_query, pos + 1, self.search.search_results.len())
+                        format!(
+                            " \"{}\" [{}/{}] ",
+                            self.search.search_query,
+                            pos + 1,
+                            self.search.search_results.len()
+                        )
                     } else {
-                        format!(" \"{}\" [0/{}] ", self.search.search_query, self.search.search_results.len())
+                        format!(
+                            " \"{}\" [0/{}] ",
+                            self.search.search_query,
+                            self.search.search_results.len()
+                        )
                     }
                 }
-                None => format!(" \"{}\" [0/{}] ", self.search.search_query, self.search.search_results.len()),
+                None => format!(
+                    " \"{}\" [0/{}] ",
+                    self.search.search_query,
+                    self.search.search_results.len()
+                ),
             };
             parts.push(match_info);
         }
@@ -594,7 +629,11 @@ impl App {
             }
             KeyCode::Down | KeyCode::Char('j') => {
                 let count = self.pending_count.take().unwrap_or(1);
-                self.view.cursor_line = self.view.cursor_line.saturating_add(count).min(self.view.max_scroll);
+                self.view.cursor_line = self
+                    .view
+                    .cursor_line
+                    .saturating_add(count)
+                    .min(self.view.max_scroll);
                 self.follow_cursor();
             }
             KeyCode::Left | KeyCode::Char('h') => {
@@ -610,25 +649,38 @@ impl App {
             }
             KeyCode::PageUp | KeyCode::Char('b') => {
                 let count = self.pending_count.take().unwrap_or(1);
-                self.view.cursor_line = self.view.cursor_line.saturating_sub(self.view.viewport_height as usize * count);
+                self.view.cursor_line = self
+                    .view
+                    .cursor_line
+                    .saturating_sub(self.view.viewport_height as usize * count);
                 self.follow_cursor();
             }
             KeyCode::PageDown | KeyCode::Char('f') => {
                 let count = self.pending_count.take().unwrap_or(1);
-                self.view.cursor_line = self.view.cursor_line
+                self.view.cursor_line = self
+                    .view
+                    .cursor_line
                     .saturating_add(self.view.viewport_height as usize * count)
                     .min(self.view.max_scroll);
                 self.follow_cursor();
             }
             KeyCode::Home | KeyCode::Char('g') => {
-                let target = self.pending_count.take().map(|c| c.saturating_sub(1)).unwrap_or(0);
+                let target = self
+                    .pending_count
+                    .take()
+                    .map(|c| c.saturating_sub(1))
+                    .unwrap_or(0);
                 self.view.cursor_line = target.min(self.view.max_scroll);
                 self.view.cursor_col = 0;
                 self.view.h_scroll = 0;
                 self.view.scroll = target.min(self.view.max_scroll);
             }
             KeyCode::End | KeyCode::Char('G') => {
-                let target = self.pending_count.take().map(|c| c.saturating_sub(1)).unwrap_or(self.view.max_scroll);
+                let target = self
+                    .pending_count
+                    .take()
+                    .map(|c| c.saturating_sub(1))
+                    .unwrap_or(self.view.max_scroll);
                 self.view.cursor_line = target.min(self.view.max_scroll);
                 self.view.cursor_col = 0;
                 self.follow_cursor();
@@ -649,7 +701,8 @@ impl App {
                 let count = self.pending_count.take().unwrap_or(1);
                 if !self.search.search_results.is_empty() {
                     for _ in 0..count {
-                        self.search.search_idx = find_next_match(&self.search.search_results, self.search.search_idx);
+                        self.search.search_idx =
+                            find_next_match(&self.search.search_results, self.search.search_idx);
                     }
                     if let Some(idx) = self.search.search_idx {
                         self.view.cursor_line = idx.min(self.view.max_scroll);
@@ -661,7 +714,8 @@ impl App {
                 let count = self.pending_count.take().unwrap_or(1);
                 if !self.search.search_results.is_empty() {
                     for _ in 0..count {
-                        self.search.search_idx = find_prev_match(&self.search.search_results, self.search.search_idx);
+                        self.search.search_idx =
+                            find_prev_match(&self.search.search_results, self.search.search_idx);
                     }
                     if let Some(idx) = self.search.search_idx {
                         self.view.cursor_line = idx.min(self.view.max_scroll);
@@ -687,7 +741,8 @@ impl App {
                 self.reload_current_file();
             }
             KeyCode::Char(']') if self.has_multiple_files() => {
-                self.file_state.file_index = (self.file_state.file_index + 1) % self.file_state.files.len();
+                self.file_state.file_index =
+                    (self.file_state.file_index + 1) % self.file_state.files.len();
                 self.view.cursor_line = 0;
                 self.view.cursor_col = 0;
                 self.view.scroll = 0;
@@ -756,7 +811,10 @@ impl App {
 
         // Check for external links (web / image) on this line
         if let Some(items) = self.rendered.links.get(line) {
-            if let Some(item) = items.iter().rfind(|i| i.col <= self.view.cursor_col as usize) {
+            if let Some(item) = items
+                .iter()
+                .rfind(|i| i.col <= self.view.cursor_col as usize)
+            {
                 let action = match item.kind {
                     crate::render::LinkKind::Web => "browser",
                     crate::render::LinkKind::Image => "image viewer",
@@ -778,7 +836,8 @@ impl App {
                 return;
             }
         };
-        let link = links.iter()
+        let link = links
+            .iter()
             .rfind(|l| l.col <= self.view.cursor_col as usize)
             .unwrap_or(&links[0]);
         let target_path = if let Some(parent) = &self.file_state.parent_dir {
@@ -808,7 +867,9 @@ impl App {
         }
         // Save current file to history before navigating
         if !self.file_state.files.is_empty() {
-            self.file_state.file_history.push(self.file_state.files[self.file_state.file_index].clone());
+            self.file_state
+                .file_history
+                .push(self.file_state.files[self.file_state.file_index].clone());
         }
         // Replace current file with the wiki link target
         if !self.file_state.files.is_empty() {
@@ -842,7 +903,7 @@ impl App {
                         }
                     }
                     self.search.search_history_idx = None;
-                    self.search.search_results = self.search_lines_for_mode( &query);
+                    self.search.search_results = self.search_lines_for_mode(&query);
                     self.search.search_idx = if forward {
                         find_next_match(&self.search.search_results, Some(self.view.scroll))
                     } else {
@@ -855,13 +916,17 @@ impl App {
                 self.mode = Mode::Normal;
             }
             KeyCode::Up => {
-                let idx = self.search.search_history_idx.get_or_insert(self.search.search_history.len());
+                let idx = self
+                    .search
+                    .search_history_idx
+                    .get_or_insert(self.search.search_history.len());
                 if *idx > 0 {
                     *idx -= 1;
                     self.search.input_buf = self.search.search_history[*idx].clone();
                     self.search.search_query = self.search.input_buf.clone();
                     self.invalidate_display();
-                    self.search.search_results = self.search_lines_for_mode( &self.search.search_query);
+                    self.search.search_results =
+                        self.search_lines_for_mode(&self.search.search_query);
                     self.search.search_idx = None;
                 }
             }
@@ -876,7 +941,8 @@ impl App {
                     }
                     self.search.search_query = self.search.input_buf.clone();
                     self.invalidate_display();
-                    self.search.search_results = self.search_lines_for_mode( &self.search.search_query);
+                    self.search.search_results =
+                        self.search_lines_for_mode(&self.search.search_query);
                     self.search.search_idx = None;
                 }
             }
@@ -889,7 +955,8 @@ impl App {
                 self.search.search_query = self.search.input_buf.clone();
                 self.invalidate_display();
                 if !self.search.search_query.is_empty() {
-                    self.search.search_results = self.search_lines_for_mode( &self.search.search_query);
+                    self.search.search_results =
+                        self.search_lines_for_mode(&self.search.search_query);
                     self.search.search_idx = None;
                 } else {
                     self.search.search_results.clear();
@@ -901,7 +968,8 @@ impl App {
                 self.search.search_query = self.search.input_buf.clone();
                 self.invalidate_display();
                 if !self.search.search_query.is_empty() {
-                    self.search.search_results = self.search_lines_for_mode( &self.search.search_query);
+                    self.search.search_results =
+                        self.search_lines_for_mode(&self.search.search_query);
                     self.search.search_idx = None;
                 }
             }
@@ -988,7 +1056,11 @@ impl App {
             Style::default().fg(Color::DarkGray),
         )));
         for (i, path) in self.file_state.files.iter().enumerate() {
-            let marker = if i == self.file_state.file_index { "▸ " } else { "  " };
+            let marker = if i == self.file_state.file_index {
+                "▸ "
+            } else {
+                "  "
+            };
             let fg = if i == self.file_state.file_index {
                 Color::Cyan
             } else {
@@ -1011,10 +1083,12 @@ impl App {
         let para_style = self.theme.style_as_style("paragraph").unwrap_or_default();
         let frontmatter_style = para_style.add_modifier(Modifier::DIM);
         let code_style = self.theme.style_as_style("code_block").unwrap_or_default();
-        let heading_styles: Vec<Style> = (0..6).map(|i| {
-            let key = format!("heading{}", i + 1);
-            self.theme.style_as_style(&key).unwrap_or(para_style)
-        }).collect();
+        let heading_styles: Vec<Style> = (0..6)
+            .map(|i| {
+                let key = format!("heading{}", i + 1);
+                self.theme.style_as_style(&key).unwrap_or(para_style)
+            })
+            .collect();
 
         let content_lines: Vec<&str> = self.rendered.content.lines().collect();
         let total_lines = content_lines.len();
@@ -1046,11 +1120,14 @@ impl App {
                 style = code_style;
             } else if in_fence {
                 style = code_style;
-            } else if let Some(level) = trimmed
-                .chars()
-                .position(|c| c != '#')
-                .filter(|&pos| pos > 0 && pos <= 6 && trimmed.as_bytes().get(pos).is_some_and(|&b| b == b' ' || pos == trimmed.len()))
-            {
+            } else if let Some(level) = trimmed.chars().position(|c| c != '#').filter(|&pos| {
+                pos > 0
+                    && pos <= 6
+                    && trimmed
+                        .as_bytes()
+                        .get(pos)
+                        .is_some_and(|&b| b == b' ' || pos == trimmed.len())
+            }) {
                 style = heading_styles[level - 1];
             } else {
                 style = para_style;
@@ -1081,7 +1158,9 @@ impl App {
             KeyCode::Up | KeyCode::Char('k') if self.file_state.file_index > 0 => {
                 self.file_state.file_index -= 1;
             }
-            KeyCode::Down | KeyCode::Char('j') if self.file_state.file_index + 1 < self.file_state.files.len() => {
+            KeyCode::Down | KeyCode::Char('j')
+                if self.file_state.file_index + 1 < self.file_state.files.len() =>
+            {
                 self.file_state.file_index += 1;
             }
             KeyCode::Enter => {
@@ -1102,10 +1181,7 @@ impl App {
 fn prepend_line_number(mut line: Line<'static>, num: usize, total: usize) -> Line<'static> {
     let digits = total.to_string().len();
     let num_str = format!("{:>width$} ", num, width = digits);
-    let num_span = Span::styled(
-        num_str,
-        Style::default().fg(Color::DarkGray),
-    );
+    let num_span = Span::styled(num_str, Style::default().fg(Color::DarkGray));
     line.spans.insert(0, num_span);
     line
 }
