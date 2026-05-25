@@ -1,9 +1,15 @@
 # Changelog
+## [0.4.2] - 2026-05-25
+
+### Refactor
+
+- Move insta snapshots from src/snapshots/ to tests/snapshots/ (#11)
 ## [0.4.1] - 2026-05-25
 
 ### Miscellaneous Tasks
 
 - Misc improvements (CI, docs, Cargo.lock, clippy, fmt)
+- Release v0.4.1
 ## [0.4.0] - 2026-05-25
 
 ### Features
