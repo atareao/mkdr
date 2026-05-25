@@ -1,9 +1,18 @@
 # Changelog
+## [0.3.2] - 2026-05-25
+
+### Bug Fixes
+
+- Remove x86_64-apple-darwin target (macos-13 runners unavailable)
 ## [0.3.1] - 2026-05-24
 
 ### Bug Fixes
 
 - Use 7z instead of zip for Windows archive
+
+### Miscellaneous Tasks
+
+- Release v0.3.1
 ## [0.3.0] - 2026-05-24
 
 ### Bug Fixes
