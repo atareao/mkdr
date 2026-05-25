@@ -61,6 +61,8 @@ mkdr -w none chapter1.md chapter2.md chapter3.md
 | `←` / `→` | Scroll horizontal (when `wrap=none`) |
 | `PgUp` / `b` | Page up |
 | `PgDn` / `f` | Page down |
+| `Ctrl+u` | Half-page up |
+| `Ctrl+d` | Half-page down |
 | `Home` / `g` | Go to top |
 | `End` / `G` | Go to bottom |
 | `/` | Search forward |
