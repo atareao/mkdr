@@ -1,9 +1,18 @@
 # Changelog
+## [0.3.3] - 2026-05-25
+
+### Bug Fixes
+
+- Add --allow-dirty to cargo publish (Cargo.lock not committed)
 ## [0.3.2] - 2026-05-25
 
 ### Bug Fixes
 
 - Remove x86_64-apple-darwin target (macos-13 runners unavailable)
+
+### Miscellaneous Tasks
+
+- Release v0.3.2
 ## [0.3.1] - 2026-05-24
 
 ### Bug Fixes
