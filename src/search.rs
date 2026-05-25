@@ -75,8 +75,10 @@ pub fn highlight_line(line: &Line<'static>, query: &str) -> Line<'static> {
         while let Some(pos) = content_lower[start..].find(&query_lower) {
             let abs_pos = start + pos;
             if abs_pos > 0 {
-                new_spans
-                    .push(Span::styled(content[start..abs_pos].to_string(), base_style));
+                new_spans.push(Span::styled(
+                    content[start..abs_pos].to_string(),
+                    base_style,
+                ));
             }
             let match_end = abs_pos + query.len();
             new_spans.push(Span::styled(
@@ -102,7 +104,11 @@ mod tests {
 
     #[test]
     fn test_search_lines_basic() {
-        let lines = vec!["hello world".to_string(), "goodbye".to_string(), "HELLO again".to_string()];
+        let lines = vec![
+            "hello world".to_string(),
+            "goodbye".to_string(),
+            "HELLO again".to_string(),
+        ];
         let results = search_lines(&lines, "hello");
         assert_eq!(results, vec![0, 2]);
     }
@@ -151,7 +157,11 @@ mod tests {
     fn test_highlight_line_basic() {
         let line = Line::from(Span::raw("hello world"));
         let highlighted = highlight_line(&line, "world");
-        let text: String = highlighted.spans.iter().map(|s| s.content.as_ref()).collect();
+        let text: String = highlighted
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert_eq!(text, "hello world");
         assert!(highlighted.spans.len() >= 2); // "hello " + "world"
     }
@@ -160,7 +170,11 @@ mod tests {
     fn test_highlight_line_multiple_matches() {
         let line = Line::from(Span::raw("foo bar foo"));
         let highlighted = highlight_line(&line, "foo");
-        let text: String = highlighted.spans.iter().map(|s| s.content.as_ref()).collect();
+        let text: String = highlighted
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
         assert_eq!(text, "foo bar foo");
     }
 

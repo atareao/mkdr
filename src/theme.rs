@@ -40,61 +40,233 @@ impl Theme {
     /// Built-in dark theme (VS Code–inspired palette).
     pub fn default_dark() -> Self {
         let mut t = Self::default();
-        t.set("paragraph", Some("#d4d4d4"), None, false, false, false, false);
+        t.set(
+            "paragraph",
+            Some("#d4d4d4"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
         t.set("bold", Some("#ffffff"), None, true, false, false, false);
         t.set("italic", Some("#e6b450"), None, false, true, false, false);
-        t.set("strikeout", Some("#808080"), None, false, false, false, false);
-        t.set("inline_code", Some("#ce9178"), Some("#2d2d2d"), false, false, false, false);
-        t.set("code_block", Some("#d4d4d4"), Some("#1e1e1e"), false, false, false, false);
+        t.set(
+            "strikeout",
+            Some("#808080"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "inline_code",
+            Some("#ce9178"),
+            Some("#2d2d2d"),
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "code_block",
+            Some("#d4d4d4"),
+            Some("#1e1e1e"),
+            false,
+            false,
+            false,
+            false,
+        );
         t.set("heading1", Some("#f44747"), None, true, false, false, false);
         t.set("heading2", Some("#569cd6"), None, true, false, false, false);
         t.set("heading3", Some("#4ec9b0"), None, true, false, false, false);
-        t.set("heading4", Some("#dcdcaa"), None, false, false, false, false);
-        t.set("heading5", Some("#9a9a9a"), None, false, false, false, false);
-        t.set("heading6", Some("#808080"), None, false, false, false, false);
+        t.set(
+            "heading4",
+            Some("#dcdcaa"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "heading5",
+            Some("#9a9a9a"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "heading6",
+            Some("#808080"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
         t.set("link", Some("#569cd6"), None, false, false, true, false);
         t.set("table", Some("#808080"), None, false, false, false, false);
         t.set("bullet", Some("#569cd6"), None, false, false, false, false);
-        t.set("quote_mark", Some("#6a9955"), None, false, false, false, false);
-        t.set("horizontal_rule", Some("#404040"), None, false, false, false, false);
-        t.set("ellipsis", Some("#404040"), None, false, false, false, false);
+        t.set(
+            "quote_mark",
+            Some("#6a9955"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "horizontal_rule",
+            Some("#404040"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "ellipsis",
+            Some("#404040"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
         t
     }
 
     /// Built-in light theme (GitHub–inspired palette).
     pub fn default_light() -> Self {
         let mut t = Self::default();
-        t.set("paragraph", Some("#333333"), None, false, false, false, false);
+        t.set(
+            "paragraph",
+            Some("#333333"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
         t.set("bold", Some("#000000"), None, true, false, false, false);
         t.set("italic", Some("#e88d4a"), None, false, true, false, false);
-        t.set("strikeout", Some("#999999"), None, false, false, false, false);
-        t.set("inline_code", Some("#c7254e"), Some("#f9f2f4"), false, false, false, false);
-        t.set("code_block", Some("#333333"), Some("#f5f5f5"), false, false, false, false);
+        t.set(
+            "strikeout",
+            Some("#999999"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "inline_code",
+            Some("#c7254e"),
+            Some("#f9f2f4"),
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "code_block",
+            Some("#333333"),
+            Some("#f5f5f5"),
+            false,
+            false,
+            false,
+            false,
+        );
         t.set("heading1", Some("#d73a49"), None, true, false, false, false);
         t.set("heading2", Some("#005cc5"), None, true, false, false, false);
         t.set("heading3", Some("#22863a"), None, true, false, false, false);
-        t.set("heading4", Some("#735c0f"), None, false, false, false, false);
-        t.set("heading5", Some("#6a737d"), None, false, false, false, false);
-        t.set("heading6", Some("#6a737d"), None, false, false, false, false);
+        t.set(
+            "heading4",
+            Some("#735c0f"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "heading5",
+            Some("#6a737d"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "heading6",
+            Some("#6a737d"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
         t.set("link", Some("#005cc5"), None, false, false, true, false);
         t.set("table", Some("#959da5"), None, false, false, false, false);
         t.set("bullet", Some("#005cc5"), None, false, false, false, false);
-        t.set("quote_mark", Some("#22863a"), None, false, false, false, false);
-        t.set("horizontal_rule", Some("#d1d5da"), None, false, false, false, false);
-        t.set("ellipsis", Some("#d1d5da"), None, false, false, false, false);
+        t.set(
+            "quote_mark",
+            Some("#22863a"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "horizontal_rule",
+            Some("#d1d5da"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
+        t.set(
+            "ellipsis",
+            Some("#d1d5da"),
+            None,
+            false,
+            false,
+            false,
+            false,
+        );
         t
     }
 
     #[expect(clippy::too_many_arguments)]
-    fn set(&mut self, key: &str, fg: Option<&str>, bg: Option<&str>, bold: bool, italic: bool, underline: bool, strikethrough: bool) {
-        self.styles.insert(key.to_string(), StyleDef {
-            fg: fg.map(String::from),
-            bg: bg.map(String::from),
-            bold: if bold { Some(true) } else { None },
-            italic: if italic { Some(true) } else { None },
-            underline: if underline { Some(true) } else { None },
-            strikethrough: if strikethrough { Some(true) } else { None },
-        });
+    fn set(
+        &mut self,
+        key: &str,
+        fg: Option<&str>,
+        bg: Option<&str>,
+        bold: bool,
+        italic: bool,
+        underline: bool,
+        strikethrough: bool,
+    ) {
+        self.styles.insert(
+            key.to_string(),
+            StyleDef {
+                fg: fg.map(String::from),
+                bg: bg.map(String::from),
+                bold: if bold { Some(true) } else { None },
+                italic: if italic { Some(true) } else { None },
+                underline: if underline { Some(true) } else { None },
+                strikethrough: if strikethrough { Some(true) } else { None },
+            },
+        );
     }
 
     /// Load a theme by name. Checks built-in themes first, then `~/.config/mkdr/themes/{name}.toml`.
@@ -103,7 +275,10 @@ impl Theme {
             return Self::from_toml(content);
         }
         let dir = dirs::config_dir()?;
-        let path = dir.join("mkdr").join("themes").join(format!("{}.toml", name));
+        let path = dir
+            .join("mkdr")
+            .join("themes")
+            .join(format!("{}.toml", name));
         let content = std::fs::read_to_string(path).ok()?;
         Self::from_toml(&content)
     }
@@ -169,23 +344,45 @@ impl Theme {
     ///
     /// Returns `(fg, bg, bold, italic, underline, strikethrough)`.
     #[expect(clippy::type_complexity)]
-    pub fn style_for(&self, key: &str) -> Option<(Option<Color>, Option<Color>, bool, bool, bool, bool)> {
+    pub fn style_for(
+        &self,
+        key: &str,
+    ) -> Option<(Option<Color>, Option<Color>, bool, bool, bool, bool)> {
         let def = self.styles.get(key)?;
         let fg = def.fg.as_ref().and_then(|c| self.resolve_color(c));
         let bg = def.bg.as_ref().and_then(|c| self.resolve_color(c));
-        Some((fg, bg, def.bold.unwrap_or(false), def.italic.unwrap_or(false), def.underline.unwrap_or(false), def.strikethrough.unwrap_or(false)))
+        Some((
+            fg,
+            bg,
+            def.bold.unwrap_or(false),
+            def.italic.unwrap_or(false),
+            def.underline.unwrap_or(false),
+            def.strikethrough.unwrap_or(false),
+        ))
     }
 
     /// Resolve a style entry to a ratatui `Style`, or `None` if the key is not found.
     pub fn style_as_style(&self, key: &str) -> Option<Style> {
         let (fg, bg, bold, italic, underline, strikethrough) = self.style_for(key)?;
         let mut s = Style::default();
-        if let Some(c) = fg { s = s.fg(c); }
-        if let Some(c) = bg { s = s.bg(c); }
-        if bold { s = s.add_modifier(ratatui::style::Modifier::BOLD); }
-        if italic { s = s.add_modifier(ratatui::style::Modifier::ITALIC); }
-        if underline { s = s.add_modifier(ratatui::style::Modifier::UNDERLINED); }
-        if strikethrough { s = s.add_modifier(ratatui::style::Modifier::CROSSED_OUT); }
+        if let Some(c) = fg {
+            s = s.fg(c);
+        }
+        if let Some(c) = bg {
+            s = s.bg(c);
+        }
+        if bold {
+            s = s.add_modifier(ratatui::style::Modifier::BOLD);
+        }
+        if italic {
+            s = s.add_modifier(ratatui::style::Modifier::ITALIC);
+        }
+        if underline {
+            s = s.add_modifier(ratatui::style::Modifier::UNDERLINED);
+        }
+        if strikethrough {
+            s = s.add_modifier(ratatui::style::Modifier::CROSSED_OUT);
+        }
         Some(s)
     }
 

@@ -35,13 +35,20 @@ pub fn load_config() -> Config {
         Ok(c) => c,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Config::default(),
         Err(_) => {
-            eprintln!("Warning: could not read config file '{}'", config_path.display());
+            eprintln!(
+                "Warning: could not read config file '{}'",
+                config_path.display()
+            );
             return Config::default();
         }
     };
 
     toml::from_str(&content).unwrap_or_else(|e| {
-        eprintln!("Warning: could not parse config file '{}': {}", config_path.display(), e);
+        eprintln!(
+            "Warning: could not parse config file '{}': {}",
+            config_path.display(),
+            e
+        );
         Config::default()
     })
 }

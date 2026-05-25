@@ -3,11 +3,13 @@ use std::path::PathBuf;
 
 use clap::CommandFactory;
 use clap::Parser;
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
-use ratatui::backend::CrosstermBackend;
+use crossterm::terminal::{
+    EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
+};
 use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
 
 mod app;
 mod config;
@@ -20,12 +22,15 @@ use config::load_config;
 use theme::Theme;
 
 #[derive(Parser)]
-#[command(version, about = "TUI markdown renderer with paging",
+#[command(
+    version,
+    about = "TUI markdown renderer with paging",
     long_about = "TUI markdown renderer with paging.
 
 Built-in themes: ayu_dark, ayu_light, ayu_mirage, catppuccin_mocha, dracula, gruvbox_dark, nord, onedark, solarized_light, tokyonight
 
-User themes: place .toml files in ~/.config/mkdr/themes/")]
+User themes: place .toml files in ~/.config/mkdr/themes/"
+)]
 struct Args {
     /// Markdown file(s) to display (reads from stdin if omitted)
     files: Vec<PathBuf>,
@@ -89,15 +94,13 @@ fn main() {
     let theme = match theme_name.as_str() {
         "auto" | "dark" => Theme::default_dark(),
         "light" => Theme::default_light(),
-        name => {
-            match Theme::load(name) {
-                Some(t) => t,
-                None => {
-                    eprintln!("Warning: theme '{}' not found, using default dark", name);
-                    Theme::default_dark()
-                }
+        name => match Theme::load(name) {
+            Some(t) => t,
+            None => {
+                eprintln!("Warning: theme '{}' not found, using default dark", name);
+                Theme::default_dark()
             }
-        }
+        },
     };
 
     let follow = cli_args.follow;
