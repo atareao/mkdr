@@ -1,6 +1,10 @@
 # mkdr
 
-[![release](https://github.com/atareao/mkdr/actions/workflows/release.yml/badge.svg)](https://github.com/atareao/mkdr/actions/workflows/release.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/atareao/mkdr/ci.yml?style=flat-square&logo=github)](https://github.com/atareao/mkdr/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/atareao/mkdr/release.yml?style=flat-square&logo=github)](https://github.com/atareao/mkdr/actions/workflows/release.yml)
+[![Latest](https://img.shields.io/github/v/release/atareao/mkdr?style=flat-square&logo=github)](https://github.com/atareao/mkdr/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-2024-dea584?style=flat-square&logo=rust)](https://doc.rust-lang.org/edition-guide/rust-2024/index.html)
 
 TUI markdown renderer with paging, search, theming, and multi-file support.
 
