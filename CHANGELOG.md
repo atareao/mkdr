@@ -1,9 +1,18 @@
 # Changelog
+## [0.4.0] - 2026-05-25
+
+### Features
+
+- Rename project from mdr to mkdr
 ## [0.3.3] - 2026-05-25
 
 ### Bug Fixes
 
 - Add --allow-dirty to cargo publish (Cargo.lock not committed)
+
+### Miscellaneous Tasks
+
+- Release v0.3.3
 ## [0.3.2] - 2026-05-25
 
 ### Bug Fixes
