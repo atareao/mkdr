@@ -3,7 +3,7 @@ use std::io;
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-use crossterm::event::{self, Event, KeyCode, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::{Constraint, Layout};
@@ -345,7 +345,7 @@ impl App {
                 && key.kind == KeyEventKind::Press
             {
                 match &self.mode {
-                    Mode::Normal => self.handle_normal_key(key.code),
+                    Mode::Normal => self.handle_normal_key(&key),
                     Mode::SearchForward | Mode::SearchBackward => {
                         self.handle_search_key(key.code);
                     }
@@ -585,7 +585,8 @@ impl App {
         Paragraph::new(Line::from(left_spans))
     }
 
-    fn handle_normal_key(&mut self, code: KeyCode) {
+    fn handle_normal_key(&mut self, key: &KeyEvent) {
+        let code = key.code;
         self.status_message = None;
 
         if self.bm.expecting_bookmark_set {
@@ -645,6 +646,22 @@ impl App {
                 let count = self.pending_count.take().unwrap_or(1) as u16;
                 let max_col = self.line_width(self.view.cursor_line);
                 self.view.cursor_col = self.view.cursor_col.saturating_add(count).min(max_col);
+                self.follow_cursor();
+            }
+            KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                let count = self.pending_count.take().unwrap_or(1);
+                let half = (self.view.viewport_height as usize / 2).max(1);
+                self.view.cursor_line = self.view.cursor_line.saturating_sub(half * count);
+                self.follow_cursor();
+            }
+            KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                let count = self.pending_count.take().unwrap_or(1);
+                let half = (self.view.viewport_height as usize / 2).max(1);
+                self.view.cursor_line = self
+                    .view
+                    .cursor_line
+                    .saturating_add(half * count)
+                    .min(self.view.max_scroll);
                 self.follow_cursor();
             }
             KeyCode::PageUp | KeyCode::Char('b') => {
