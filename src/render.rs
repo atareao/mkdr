@@ -14,8 +14,12 @@ const BULLET_CHAR: char = '•';
 const QUOTE_CHAR: char = '▐';
 const RULE_WIDTH: usize = 80;
 
-pub type RenderOutput =
-    (Vec<Line<'static>>, Vec<String>, Vec<Vec<WikiLink>>, Vec<Vec<LinkItem>>);
+pub type RenderOutput = (
+    Vec<Line<'static>>,
+    Vec<String>,
+    Vec<Vec<WikiLink>>,
+    Vec<Vec<LinkItem>>,
+);
 type ListItemData = (Vec<Span<'static>>, String, Vec<WikiLink>, Vec<LinkItem>);
 const QUOTE_COLORS: [Color; 3] = [
     Color::Rgb(106, 153, 85),
@@ -147,10 +151,7 @@ fn strip_frontmatter(content: &str) -> &str {
 /// Parse markdown `content` and produce styled lines, raw text, and link metadata.
 ///
 /// Returns `(styled_lines, raw_lines, wiki_links_per_line, links_per_line)`.
-pub fn render(
-    content: &str,
-    theme: &Theme,
-) -> RenderOutput {
+pub fn render(content: &str, theme: &Theme) -> RenderOutput {
     let content = strip_frontmatter(content);
     let processed = preprocess_wiki_links(content);
     let renderer = Renderer::new(theme);

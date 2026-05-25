@@ -810,12 +810,11 @@ impl App {
         let line = self.view.cursor_line;
 
         // Check for external links (web / image) on this line
-        if let Some(item) = self
-            .rendered
-            .links
-            .get(line)
-            .and_then(|items| items.iter().rfind(|i| i.col <= self.view.cursor_col as usize))
-        {
+        if let Some(item) = self.rendered.links.get(line).and_then(|items| {
+            items
+                .iter()
+                .rfind(|i| i.col <= self.view.cursor_col as usize)
+        }) {
             let action = match item.kind {
                 crate::render::LinkKind::Web => "browser",
                 crate::render::LinkKind::Image => "image viewer",
