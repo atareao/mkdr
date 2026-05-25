@@ -1,4 +1,9 @@
 # Changelog
+## [0.5.1] - 2026-05-25
+
+### Miscellaneous Tasks
+
+- Sync development with main after release
 ## [0.5.0] - 2026-05-25
 
 ### Bug Fixes
@@ -10,6 +15,7 @@
 
 - Release v0.4.3 (#14)
 - Sync development with main (v0.4.3)
+- Release v0.5.0
 
 ### Other
 
