@@ -1,9 +1,18 @@
 # Changelog
+## [0.4.1] - 2026-05-25
+
+### Miscellaneous Tasks
+
+- Misc improvements (CI, docs, Cargo.lock, clippy, fmt)
 ## [0.4.0] - 2026-05-25
 
 ### Features
 
 - Rename project from mdr to mkdr
+
+### Miscellaneous Tasks
+
+- Release v0.4.0
 ## [0.3.3] - 2026-05-25
 
 ### Bug Fixes
