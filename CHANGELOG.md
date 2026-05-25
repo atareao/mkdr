@@ -1,4 +1,9 @@
 # Changelog
+## [0.3.1] - 2026-05-24
+
+### Bug Fixes
+
+- Use 7z instead of zip for Windows archive
 ## [0.3.0] - 2026-05-24
 
 ### Bug Fixes
@@ -11,6 +16,7 @@
 
 ### Miscellaneous Tasks
 
+- Release v0.3.0
 - Release v0.3.0
 ## [0.2.0] - 2026-05-24
 
