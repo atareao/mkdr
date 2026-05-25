@@ -1427,8 +1427,6 @@ mod tests {
         };
     }
 
-    use snap;
-
     #[test]
     fn renders_paragraph() {
         let theme = Theme::default_dark();
