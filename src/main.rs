@@ -62,6 +62,30 @@ struct Args {
     /// Generate shell completions
     #[arg(long = "completions", value_enum)]
     completions: Option<Shell>,
+
+    /// Disable all colours and other styles
+    #[arg(short = 'c', long = "no-colour")]
+    no_colour: bool,
+
+    /// Maximum number of columns to use for output
+    #[arg(long = "columns")]
+    columns: Option<u16>,
+
+    /// Do not load remote resources like images
+    #[arg(long = "local")]
+    local: bool,
+
+    /// Exit immediately if any error occurs processing an input file
+    #[arg(long = "fail")]
+    fail: bool,
+
+    /// Print detected terminal name and exit
+    #[arg(long = "detect-terminal")]
+    detect_terminal: bool,
+
+    /// Skip terminal detection and only use ANSI formatting
+    #[arg(long = "ansi")]
+    ansi: bool,
 }
 
 fn main() {
@@ -70,6 +94,12 @@ fn main() {
     if let Some(shell) = cli_args.completions {
         let mut cmd = Args::command();
         generate(shell, &mut cmd, "mkdr", &mut io::stdout());
+        return;
+    }
+
+    if cli_args.detect_terminal {
+        let term = std::env::var("TERM").unwrap_or_else(|_| "unknown".to_string());
+        println!("{}", term);
         return;
     }
 
@@ -91,16 +121,20 @@ fn main() {
         cli_args.theme.clone()
     };
 
-    let theme = match theme_name.as_str() {
-        "auto" | "dark" => Theme::default_dark(),
-        "light" => Theme::default_light(),
-        name => match Theme::load(name) {
-            Some(t) => t,
-            None => {
-                eprintln!("Warning: theme '{}' not found, using default dark", name);
-                Theme::default_dark()
-            }
-        },
+    let theme = if cli_args.no_colour {
+        Theme::plain()
+    } else {
+        match theme_name.as_str() {
+            "auto" | "dark" => Theme::default_dark(),
+            "light" => Theme::default_light(),
+            name => match Theme::load(name) {
+                Some(t) => t,
+                None => {
+                    eprintln!("Warning: theme '{}' not found, using default dark", name);
+                    Theme::default_dark()
+                }
+            },
+        }
     };
 
     let follow = cli_args.follow;
@@ -158,6 +192,9 @@ fn main() {
         theme,
         cli_args.line,
         stdin_content,
+        cli_args.columns,
+        cli_args.local,
+        cli_args.fail,
     );
 
     let result = app.run(&mut terminal);

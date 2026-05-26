@@ -245,6 +245,16 @@ impl Theme {
         t
     }
 
+    /// Empty theme with no colours or styles (used for `--no-colour`).
+    pub fn plain() -> Self {
+        Self::default()
+    }
+
+    /// Returns `true` if this theme has no styles defined (i.e. it's the plain theme).
+    pub fn is_plain(&self) -> bool {
+        self.styles.is_empty()
+    }
+
     #[expect(clippy::too_many_arguments)]
     fn set(
         &mut self,
@@ -491,5 +501,26 @@ mod tests {
     fn style_for_unknown_key_returns_none() {
         let t = Theme::default();
         assert!(t.style_for("nothing").is_none());
+    }
+
+    #[test]
+    fn plain_theme_has_no_styles() {
+        let t = Theme::plain();
+        assert!(t.is_plain());
+        assert!(t.style_for("paragraph").is_none());
+        assert!(t.style_for("bold").is_none());
+        assert!(t.style_for("heading1").is_none());
+    }
+
+    #[test]
+    fn default_dark_is_not_plain() {
+        let t = Theme::default_dark();
+        assert!(!t.is_plain());
+    }
+
+    #[test]
+    fn default_light_is_not_plain() {
+        let t = Theme::default_light();
+        assert!(!t.is_plain());
     }
 }
