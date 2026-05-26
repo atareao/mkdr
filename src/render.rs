@@ -154,7 +154,27 @@ fn strip_frontmatter(content: &str) -> &str {
 pub fn render(content: &str, theme: &Theme) -> RenderOutput {
     let content = strip_frontmatter(content);
     let processed = preprocess_wiki_links(content);
-    let renderer = Renderer::new(theme);
+    let renderer = Renderer::new(theme, false);
+    let mut opts = Options::empty();
+    opts.insert(Options::ENABLE_TABLES);
+    opts.insert(Options::ENABLE_STRIKETHROUGH);
+    opts.insert(Options::ENABLE_TASKLISTS);
+    let parser = Parser::new_ext(&processed, opts);
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let mut raw: Vec<String> = Vec::new();
+    let mut wiki_links: Vec<Vec<WikiLink>> = Vec::new();
+    let mut links: Vec<Vec<LinkItem>> = Vec::new();
+
+    renderer.render_doc(parser, &mut lines, &mut raw, &mut wiki_links, &mut links);
+
+    (lines, raw, wiki_links, links)
+}
+
+/// Like `render()` but with the `no_colour` flag to skip all styling and syntax highlighting.
+pub fn render_with_options(content: &str, theme: &Theme, no_colour: bool) -> RenderOutput {
+    let content = strip_frontmatter(content);
+    let processed = preprocess_wiki_links(content);
+    let renderer = Renderer::new(theme, no_colour);
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_STRIKETHROUGH);
@@ -193,10 +213,11 @@ struct Renderer {
     bullet: Option<Color>,
     quote_mark: Option<Color>,
     rule: Option<Color>,
+    no_colour: bool,
 }
 
 impl Renderer {
-    fn new(theme: &Theme) -> Self {
+    fn new(theme: &Theme, no_colour: bool) -> Self {
         let para = theme.style_for("paragraph");
         let bold = theme.style_for("bold").or(para);
         let italic = theme.style_for("italic").or(para);
@@ -337,6 +358,7 @@ impl Renderer {
             bullet,
             quote_mark,
             rule,
+            no_colour,
         }
     }
 
@@ -414,11 +436,16 @@ impl Renderer {
                             && !info.is_empty()
                         {
                             raw.push(info.to_string());
-                            lines.push(Line::from(Span::styled(
-                                format!(" {} ", info),
+                            let lang_style = if self.no_colour {
+                                Style::default()
+                            } else {
                                 Style::default()
                                     .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::BOLD),
+                                    .add_modifier(Modifier::BOLD)
+                            };
+                            lines.push(Line::from(Span::styled(
+                                format!(" {} ", info),
+                                lang_style,
                             )));
                             wiki_links.push(Vec::new());
                             links.push(Vec::new());
@@ -426,6 +453,7 @@ impl Renderer {
                         let code = self.collect_code(&mut parser);
                         if let CodeBlockKind::Fenced(info) = kind
                             && !info.is_empty()
+                            && !self.no_colour
                         {
                             for (mut spans, raw_text) in
                                 highlight_code(&info, &code, self.code_block.bg)
@@ -441,7 +469,11 @@ impl Renderer {
                                 raw.push(format!("  {}", line_text));
                                 lines.push(Line::from(Span::styled(
                                     format!("  {}", line_text),
-                                    self.code_block.as_style(),
+                                    if self.no_colour {
+                                        Style::default()
+                                    } else {
+                                        self.code_block.as_style()
+                                    },
                                 )));
                                 wiki_links.push(Vec::new());
                                 links.push(Vec::new());
@@ -1802,5 +1834,22 @@ insta::with_settings!({snapshot_path => "../tests/snapshots"}, {
             !rendered.contains("[Aventuras"),
             "Should NOT contain raw markdown link syntax '[...](...'), got: {rendered}"
         );
+    }
+
+    #[test]
+    fn render_no_colour_strips_all_styles() {
+        let theme = Theme::plain();
+        let md = "# Heading\n**bold** and *italic*\n```rust\nfn main() {}\n```\n";
+        let (lines, raw, _, _) = render_with_options(md, &theme, true);
+        assert!(!lines.is_empty(), "should produce output");
+        assert!(!raw.is_empty(), "should produce raw output");
+        assert!(raw[0].contains("Heading"), "heading text preserved");
+
+        for line in &lines {
+            for span in &line.spans {
+                assert_eq!(span.style.fg, None, "no_colour span should have no fg, content={:?}", span.content);
+                assert_eq!(span.style.bg, None, "no_colour span should have no bg, content={:?}", span.content);
+            }
+        }
     }
 }

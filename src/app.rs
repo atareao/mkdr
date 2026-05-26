@@ -6,7 +6,7 @@ use std::time::SystemTime;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
-use ratatui::layout::{Constraint, Layout};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
@@ -69,6 +69,12 @@ pub struct App {
     status_message: Option<String>,
     /// Active colour theme
     theme: Theme,
+    /// Disable all colours and styles
+    no_colour: bool,
+    /// Do not load remote resources
+    local: bool,
+    /// Exit immediately on any error
+    fail: bool,
     /// Pending numeric prefix count (vim-style `3j` etc.)
     pending_count: Option<usize>,
 }
@@ -94,6 +100,7 @@ struct ViewState {
     show_line_numbers: bool,
     wrap_mode: WrapMode,
     raw_mode: bool,
+    max_columns: Option<u16>,
 }
 
 struct SearchState {
@@ -135,7 +142,11 @@ impl App {
         theme: Theme,
         start_line: usize,
         content_from_stdin: Option<String>,
+        columns: Option<u16>,
+        local: bool,
+        fail: bool,
     ) -> Self {
+        let no_colour = theme.is_plain();
         let mut app = App {
             rendered: RenderedContent {
                 lines: Vec::new(),
@@ -157,6 +168,7 @@ impl App {
                 show_line_numbers: line_numbers,
                 wrap_mode,
                 raw_mode: false,
+                max_columns: columns,
             },
             search: SearchState {
                 input_buf: String::new(),
@@ -183,6 +195,9 @@ impl App {
             mode: Mode::Normal,
             status_message: None,
             theme,
+            no_colour,
+            local,
+            fail,
             pending_count: None,
         };
 
@@ -215,6 +230,10 @@ impl App {
         self.rendered.content = match std::fs::read_to_string(path) {
             Ok(c) => c,
             Err(e) => {
+                if self.fail {
+                    eprintln!("Error: could not read '{}': {}", path.display(), e);
+                    std::process::exit(1);
+                }
                 self.status_message = Some(format!("Error reading file: {}", e));
                 String::new()
             }
@@ -235,8 +254,11 @@ impl App {
     }
 
     fn render_content(&mut self) {
-        let (styled_lines, raw, wiki_links, links) =
-            render::render(&self.rendered.content, &self.theme);
+        let (styled_lines, raw, wiki_links, links) = if self.no_colour {
+            render::render_with_options(&self.rendered.content, &self.theme, true)
+        } else {
+            render::render(&self.rendered.content, &self.theme)
+        };
         self.rendered.lines = styled_lines;
         self.rendered.raw_lines = raw;
         self.rendered.wiki_links = wiki_links;
@@ -380,6 +402,14 @@ impl App {
 
         let content_area = areas[0];
         self.view.viewport_height = content_area.height;
+
+        let content_area = if let Some(max_cols) = self.view.max_columns {
+            let w = content_area.width.min(max_cols);
+            let x = content_area.x + (content_area.width.saturating_sub(w)) / 2;
+            Rect { x, width: w, ..content_area }
+        } else {
+            content_area
+        };
 
         let display_lines: Vec<Line<'static>> = if self.mode == Mode::FileList {
             self.build_file_list()
@@ -836,6 +866,14 @@ impl App {
                 crate::render::LinkKind::Web => "browser",
                 crate::render::LinkKind::Image => "image viewer",
             };
+            if self.local
+                && item.kind == crate::render::LinkKind::Image
+                && (item.url.starts_with("http://") || item.url.starts_with("https://"))
+            {
+                self.status_message =
+                    Some("Local mode: remote images disabled".to_string());
+                return;
+            }
             if open::that(&item.url).is_ok() {
                 self.status_message = Some(format!("Opened in {}", action));
             } else {
