@@ -1,17 +1,40 @@
 # Changelog
+## [0.6.0] - 2026-05-30
+
+### Bug Fixes
+
+- Preprocess_wiki_links panic on multi-byte UTF-8 characters
+
+### Features
+
+- Add --no-colour, --columns, --local, --fail, --detect-terminal, --ansi CLI options (#23)
+
+### Miscellaneous Tasks
+
+- Release v0.5.3
 ## [0.5.3] - 2026-05-25
 
 ### Bug Fixes
 
+- Remove misleading Release badge (release.yml only runs on tags, shows failing on main)
 - Remove misleading Release badge
 
 ### Documentation
 
 - Add shields.io badges to README
+- Add shields.io badges to README
 
 ### Features
 
 - Add Ctrl+u / Ctrl+d half-page scroll shortcuts
+- Add Ctrl+u / Ctrl+d half-page scroll shortcuts
+
+### Miscellaneous Tasks
+
+- Release v0.5.3
+- Release v0.6.0
+- Release v0.6.1
+- Release v0.5.3
 ## [0.5.2] - 2026-05-25
 
 ### Bug Fixes
