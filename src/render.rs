@@ -70,61 +70,35 @@ fn preprocess_wiki_links(content: &str) -> String {
             continue;
         }
 
-        let bytes = line.as_bytes();
-        let mut pos = 0;
-        while pos < line.len() {
-            if bytes[pos..].starts_with(b"[[") {
-                let inner_start = pos + 2;
-                let mut end = inner_start;
-                let mut found_close = false;
-                while end < line.len() {
-                    if bytes[end..].starts_with(b"]]") {
-                        found_close = true;
-                        break;
-                    }
-                    end += 1;
+        let mut rest = line;
+        while let Some(start) = rest.find("[[") {
+            result.push_str(&rest[..start]);
+            let inner_rest = &rest[start + 2..];
+            if let Some(end) = inner_rest.find("]]") {
+                let inner = &inner_rest[..end];
+                if let Some(pipe) = inner.find('|') {
+                    let target = &inner[..pipe];
+                    let title = &inner[pipe + 1..];
+                    result.push('[');
+                    result.push_str(title);
+                    result.push_str("](<wikilink://");
+                    result.push_str(target);
+                    result.push_str(">)");
+                } else {
+                    result.push('[');
+                    result.push_str(inner);
+                    result.push_str("](<wikilink://");
+                    result.push_str(inner);
+                    result.push_str(">)");
                 }
-                if found_close {
-                    let inner = &line[inner_start..end];
-                    let close_pos = end + 2;
-                    if let Some(pipe) = inner.find('|') {
-                        let target = &inner[..pipe];
-                        let title = &inner[pipe + 1..];
-                        result.push('[');
-                        result.push_str(title);
-                        result.push_str("](<wikilink://");
-                        result.push_str(target);
-                        result.push_str(">)");
-                    } else {
-                        result.push('[');
-                        result.push_str(inner);
-                        result.push_str("](<wikilink://");
-                        result.push_str(inner);
-                        result.push_str(">)");
-                    }
-                    pos = close_pos;
-                    continue;
-                }
+                rest = &inner_rest[end + 2..];
+            } else {
+                // Unmatched [[ — emit the rest as-is
+                result.push_str(&rest[start..]);
+                rest = "";
             }
-            // Not at [[ — find the next [[ or end of line, then emit the whole slice
-            let start = pos;
-            while pos + 1 < line.len() {
-                if bytes[pos] == b'[' && bytes[pos + 1] == b'[' {
-                    break;
-                }
-                pos += 1;
-            }
-            if pos == start && pos < line.len() {
-                // Was at a lone character (single ASCII or within a multi-byte char
-                // range that didn't match [[). Advance past it.
-                // bytes[pos] is known to not be part of [[, so the while loop above
-                // didn't run because pos+1 >= line.len(). Advance by 1 byte to
-                // ensure forward progress; the slice &line[start..pos+1] will be
-                // valid UTF-8 since pos started at a char boundary.
-                pos += 1;
-            }
-            result.push_str(&line[start..pos]);
         }
+        result.push_str(rest);
         result.push('\n');
     }
 
@@ -1851,5 +1825,17 @@ insta::with_settings!({snapshot_path => "../tests/snapshots"}, {
                 assert_eq!(span.style.bg, None, "no_colour span should have no bg, content={:?}", span.content);
             }
         }
+    }
+
+    #[test]
+    fn preprocess_multibyte_utf8_does_not_panic() {
+        // Regression: the byte-scanning loop in preprocess_wiki_links used to
+        // land mid-UTF-8-char on multi-byte characters like …, causing a panic
+        // on &line[start..pos] when pos wasn't on a char boundary.
+        let theme = Theme::default_dark();
+        let md = "Otro de los cambios a introducir, son las pantallas de la aplicación, que como no podía ser de otra manera, se quieren apuntar a la moda de las tarjetas…";
+        let (lines, raw, _, _) = render(md, &theme);
+        assert_eq!(lines.len(), 1);
+        assert!(raw[0].contains('…'), "ellipsis should be preserved");
     }
 }
