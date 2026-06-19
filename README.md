@@ -13,6 +13,10 @@ cargo run -- README.md
 
 ## Features
 
+![Prueba](./49-800x600.jpg)
+
+![Otra prueba](https://atareao.es/wp-content/uploads/2026/03/cropped-icono-128x128-con-texto.webp)
+
 - **Markdown rendering** with full theme support (bold, italic, links, tables, code, headings)
 - **Interactive links** — `Enter` on a wiki link navigates to the file; `Enter` on a web link opens the browser; `Enter` on an image opens the default image viewer
 - **Vim-style navigation** (`j`/`k`, `b`/`f`, `g`/`G`, `←`/`→`)

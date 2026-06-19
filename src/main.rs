@@ -71,10 +71,6 @@ struct Args {
     #[arg(long = "columns")]
     columns: Option<u16>,
 
-    /// Do not load remote resources like images
-    #[arg(long = "local")]
-    local: bool,
-
     /// Exit immediately if any error occurs processing an input file
     #[arg(long = "fail")]
     fail: bool,
@@ -86,6 +82,10 @@ struct Args {
     /// Skip terminal detection and only use ANSI formatting
     #[arg(long = "ansi")]
     ansi: bool,
+
+    /// Render images inline via Kitty graphics protocol (requires Kitty/Ghostty/iTerm2)
+    #[arg(long = "images", default_value_t = false)]
+    images: bool,
 }
 
 fn main() {
@@ -193,8 +193,8 @@ fn main() {
         cli_args.line,
         stdin_content,
         cli_args.columns,
-        cli_args.local,
         cli_args.fail,
+        cli_args.images,
     );
 
     let result = app.run(&mut terminal);

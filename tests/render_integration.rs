@@ -78,7 +78,6 @@ fn test_cli_new_options_in_help() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("--no-colour"), "help should mention --no-colour");
     assert!(stdout.contains("--columns"), "help should mention --columns");
-    assert!(stdout.contains("--local"), "help should mention --local");
     assert!(stdout.contains("--fail"), "help should mention --fail");
     assert!(stdout.contains("--detect-terminal"), "help should mention --detect-terminal");
     assert!(stdout.contains("--ansi"), "help should mention --ansi");

@@ -1,7 +1,10 @@
 use std::collections::HashMap;
-use std::io;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::time::SystemTime;
+
+
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Terminal;
@@ -51,6 +54,13 @@ pub enum Mode {
     FileList,
 }
 
+struct ImagePlacement {
+    path: PathBuf,
+    line: usize,
+    disp_cols: u32,
+    disp_rows: u32,
+}
+
 /// TUI markdown viewer state and event handling.
 pub struct App {
     /// Rendered markdown content
@@ -71,12 +81,26 @@ pub struct App {
     theme: Theme,
     /// Disable all colours and styles
     no_colour: bool,
-    /// Do not load remote resources
-    local: bool,
     /// Exit immediately on any error
     fail: bool,
     /// Pending numeric prefix count (vim-style `3j` etc.)
     pending_count: Option<usize>,
+    /// Image link placements for Kitty-protocol inline rendering
+    image_placements: Vec<ImagePlacement>,
+    /// Whether terminal supports Kitty graphics protocol (lazily checked)
+    kitty_supported: bool,
+    /// Whether inline image rendering is enabled
+    images_enabled: bool,
+    /// Cache of remote image URL → local temp file path
+    image_download_cache: HashMap<String, PathBuf>,
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        for (_url, path) in self.image_download_cache.drain() {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
 }
 
 struct RenderedContent {
@@ -143,8 +167,8 @@ impl App {
         start_line: usize,
         content_from_stdin: Option<String>,
         columns: Option<u16>,
-        local: bool,
         fail: bool,
+        images: bool,
     ) -> Self {
         let no_colour = theme.is_plain();
         let mut app = App {
@@ -196,9 +220,12 @@ impl App {
             status_message: None,
             theme,
             no_colour,
-            local,
             fail,
             pending_count: None,
+            image_placements: Vec::new(),
+            kitty_supported: false,
+            images_enabled: images,
+            image_download_cache: HashMap::new(),
         };
 
         if let Some(stdin_content) = content_from_stdin {
@@ -263,6 +290,12 @@ impl App {
         self.rendered.raw_lines = raw;
         self.rendered.wiki_links = wiki_links;
         self.rendered.links = links;
+
+        // Record image links for Kitty-protocol inline rendering
+        if self.images_enabled && !self.no_colour {
+            self.expand_inline_images();
+        }
+
         self.rendered.content_lower_lines = self
             .rendered
             .content
@@ -354,6 +387,18 @@ impl App {
     ///
     /// Returns when the user quits (via `q`/`Esc`) or an I/O error occurs.
     pub fn run(&mut self, terminal: &mut Terminal<CrosstermBackend<io::Stdout>>) -> io::Result<()> {
+        // Detect Kitty graphics protocol support (only if images are enabled)
+        if self.images_enabled {
+            self.kitty_supported = match viuer::get_kitty_support() {
+                viuer::KittySupport::Local | viuer::KittySupport::Remote => true,
+                viuer::KittySupport::None => false,
+            };
+            if self.kitty_supported {
+                let _ = write!(io::stdout(), "\x1b_Ga=d\x1b\\");
+                let _ = io::stdout().flush();
+            }
+        }
+
         loop {
             if self.file_state.follow && !self.file_state.files.is_empty() {
                 self.check_file_changed();
@@ -362,6 +407,11 @@ impl App {
             terminal.draw(|f| {
                 self.render_frame(f);
             })?;
+
+            // After the frame is drawn and flushed, place inline Kitty images
+            if self.kitty_supported && self.images_enabled {
+                self.render_inline_images_kitty();
+            }
 
             if let Event::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
@@ -853,6 +903,178 @@ impl App {
         self.status_message = None;
     }
 
+/// Resolve a local image URL to an absolute path.
+    fn resolve_image_path(&self, url: &str) -> Option<std::path::PathBuf> {
+        if url.starts_with("http://") || url.starts_with("https://") {
+            return None;
+        }
+        let path = std::path::Path::new(url);
+        if path.is_absolute() {
+            if path.exists() { Some(path.to_path_buf()) } else { None }
+        } else if let Some(parent) = &self.file_state.parent_dir {
+            let candidate = parent.join(url);
+            if candidate.exists() { Some(candidate) } else { None }
+        } else {
+            if path.exists() { Some(path.to_path_buf()) } else { None }
+        }
+    }
+
+    /// Download a remote image to a temp file and cache it.
+    fn fetch_remote_image(&mut self, url: &str) -> Option<std::path::PathBuf> {
+        if self.image_download_cache.contains_key(url) {
+            return self.image_download_cache.get(url).cloned();
+        }
+
+        let response = ureq::get(url).call().ok()?;
+
+        let mut body = response.into_body();
+        let bytes: Vec<u8> = body.read_to_vec().ok()?;
+
+        let mut hasher = DefaultHasher::new();
+        url.hash(&mut hasher);
+        let hash = hasher.finish();
+        let ext = std::path::Path::new(url)
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("png");
+        let temp_dir = std::env::temp_dir().join("mkdr");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        let path = temp_dir.join(format!("img-{hash:x}.{ext}"));
+
+        if std::fs::write(&path, &bytes).is_err() {
+            return None;
+        }
+
+        self.image_download_cache
+            .insert(url.to_string(), path.clone());
+        Some(path)
+    }
+
+    /// Render inline images using the Kitty graphics protocol.
+    /// Called after each frame draw — places pixel-perfect images at the correct
+    /// cell positions by first moving the cursor, then printing with viuer.
+    fn render_inline_images_kitty(&mut self) {
+        if self.image_placements.is_empty() {
+            return;
+        }
+
+        // Clear all previous Kitty placements from the screen
+        let _ = write!(io::stdout(), "\x1b_Ga=d\x1b\\");
+
+        for placement in &self.image_placements {
+            if placement.line < self.view.scroll {
+                continue;
+            }
+            let screen_row = placement.line - self.view.scroll;
+            if screen_row >= self.view.viewport_height as usize {
+                continue;
+            }
+
+            let img = match image::ImageReader::open(&placement.path) {
+                Ok(r) => match r.decode() {
+                    Ok(i) => i,
+                    Err(_) => continue,
+                },
+                Err(_) => continue,
+            };
+
+            // Move cursor to cell (1, screen_row+1) then let viuer print there
+            let _ = write!(io::stdout(), "\x1b[{};{}H", screen_row + 1, 1);
+            let config = viuer::Config {
+                width: Some(placement.disp_cols),
+                height: Some(placement.disp_rows),
+                x: 0,
+                y: 0,
+                absolute_offset: false,
+                use_kitty: true,
+                ..Default::default()
+            };
+            let _ = viuer::print(&img, &config);
+        }
+        let _ = io::stdout().flush();
+    }
+
+    /// Find image links in rendered output, record placements, and insert blank
+    /// placeholder lines so the image's height is reserved in the text layout.
+    fn expand_inline_images(&mut self) {
+        self.image_placements.clear();
+        if self.view.raw_mode {
+            return;
+        }
+
+        let term_rows = crossterm::terminal::size()
+            .map(|s| s.1 as u32)
+            .unwrap_or(24);
+        let bound_h = (term_rows / 2).clamp(4, 30);
+
+        let cols = crossterm::terminal::size()
+            .map(|s| s.0 as u32)
+            .unwrap_or(80);
+        let bound_w = cols.saturating_sub(1).max(10);
+
+        // Collect image link URLs and their line numbers from rendered links
+        let mut image_urls: Vec<(usize, String)> = Vec::new();
+        for (li, items) in self.rendered.links.iter().enumerate().rev() {
+            for item in items {
+                if item.kind == crate::render::LinkKind::Image {
+                    image_urls.push((li, item.url.clone()));
+                    break;
+                }
+            }
+        }
+
+        // Collect placements in reverse order so splicing doesn't invalidate indices
+        let mut placements: Vec<(usize, Vec<Line<'static>>)> = Vec::new();
+
+        for (li, url) in &image_urls {
+            if let Some(path) = self.resolve_image_path(url)
+                .or_else(|| self.fetch_remote_image(url))
+            {
+                if let Ok(r) = image::ImageReader::open(&path) {
+                    if let Ok(img) = r.decode() {
+                        let (iw, ih) = (img.width(), img.height());
+
+                        let eff_bound_h = bound_h * 2;
+                        let scale = (bound_w as f32 / iw.max(1) as f32)
+                            .min(eff_bound_h as f32 / ih.max(1) as f32);
+                        let disp_w = (iw as f32 * scale).round() as u32;
+                        let disp_h_px = (ih as f32 * scale).round() as u32;
+                        let disp_rows = (disp_h_px + 1).saturating_div(2).max(1);
+
+                        self.image_placements.push(ImagePlacement {
+                            path,
+                            line: *li,
+                            disp_cols: disp_w,
+                            disp_rows,
+                        });
+
+                        let blank = std::iter::repeat(Line::from(Span::raw(" ")))
+                            .take(disp_rows as usize);
+                        placements.push((*li, blank.collect()));
+                    }
+                }
+            }
+        }
+
+        // Splice blanks in reverse order (already sorted by .rev() above)
+        for (li, blanks) in placements {
+            let count = blanks.len();
+            self.rendered.lines.splice(li..=li, blanks);
+            self.rendered.raw_lines.splice(
+                li..=li,
+                std::iter::repeat(String::new()).take(count),
+            );
+            self.rendered.wiki_links.splice(
+                li..=li,
+                std::iter::repeat(Vec::new()).take(count),
+            );
+            self.rendered.links.splice(
+                li..=li,
+                std::iter::repeat(Vec::new()).take(count),
+            );
+        }
+    }
+
     fn follow_wiki_link(&mut self) {
         let line = self.view.cursor_line;
 
@@ -862,24 +1084,26 @@ impl App {
                 .iter()
                 .rfind(|i| i.col <= self.view.cursor_col as usize)
         }) {
-            let action = match item.kind {
-                crate::render::LinkKind::Web => "browser",
-                crate::render::LinkKind::Image => "image viewer",
-            };
-            if self.local
-                && item.kind == crate::render::LinkKind::Image
-                && (item.url.starts_with("http://") || item.url.starts_with("https://"))
-            {
-                self.status_message =
-                    Some("Local mode: remote images disabled".to_string());
-                return;
+            match item.kind {
+                crate::render::LinkKind::Web => {
+                    if open::that(&item.url).is_ok() {
+                        self.status_message = Some("Opened in browser".to_string());
+                    } else {
+                        self.status_message = Some(format!("Failed to open: {}", item.url));
+                    }
+                    return;
+                }
+                crate::render::LinkKind::Image => {
+                    // Images are rendered inline via Kitty protocol.
+                    // Enter to open full-size in system viewer.
+                    if open::that(&item.url).is_ok() {
+                        self.status_message = Some("Opened in image viewer".to_string());
+                    } else {
+                        self.status_message = Some(format!("Failed to open: {}", item.url));
+                    }
+                    return;
+                }
             }
-            if open::that(&item.url).is_ok() {
-                self.status_message = Some(format!("Opened in {}", action));
-            } else {
-                self.status_message = Some(format!("Failed to open: {}", item.url));
-            }
-            return;
         }
 
         // Fall back to wiki link navigation
