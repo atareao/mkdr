@@ -1,0 +1,36 @@
+[colors]
+text = "#d9d7ce"
+bold = "#e6e1cf"
+italic = "#e6b450"
+bg = "#1f2430"
+red = "#f07178"
+green = "#a1c659"
+yellow = "#ffd173"
+blue = "#73d0ff"
+purple = "#d4bfff"
+cyan = "#5ccfe6"
+orange = "#ff8f40"
+light_gray = "#e6e1cf"
+dark_gray = "#2d3640"
+code_bg = "#1a1f2a"
+muted = "#7a818d"
+
+[styles]
+paragraph = { fg = "text" }
+bold = { fg = "bold", bold = true }
+italic = { fg = "italic", italic = true }
+strikeout = { fg = "text" }
+inline_code = { fg = "orange", bg = "code_bg" }
+code_block = { fg = "text", bg = "code_bg" }
+heading1 = { fg = "orange", bold = true }
+heading2 = { fg = "cyan", bold = true }
+heading3 = { fg = "red" }
+heading4 = { fg = "green" }
+heading5 = { fg = "purple" }
+heading6 = { fg = "muted" }
+link = { fg = "blue", underline = true }
+table = { fg = "cyan" }
+bullet = { fg = "orange" }
+quote_mark = { fg = "green" }
+horizontal_rule = { fg = "dark_gray" }
+ellipsis = { fg = "dark_gray" }

@@ -1,0 +1,29 @@
+[package]
+name = "mkdr"
+version = "0.6.0"
+edition = "2024"
+description = "TUI markdown renderer with paging, search, theming, and multi-file support"
+license = "MIT"
+repository = "https://github.com/atareao/mkdr"
+readme = "README.md"
+keywords = ["markdown", "tui", "ratatui", "renderer", "terminal"]
+categories = ["command-line-utilities", "rendering"]
+
+[dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+clap_complete = "4.6.5"
+crossterm = "0.29.0"
+dirs = "6.0.0"
+image = "0.25"
+open = "5"
+pulldown-cmark = "0.13.4"
+ratatui = "0.30.0"
+serde = { version = "1.0.228", features = ["derive"] }
+syntect = { version = "5.3.0", features = ["default-onig"] }
+toml = "1.1.2"
+unicode-width = "0.2.2"
+ureq = "3.3.0"
+viuer = "0.9"
+
+[dev-dependencies]
+insta = { version = "1.47.2", features = ["yaml"] }

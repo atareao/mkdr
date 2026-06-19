@@ -1,0 +1,24 @@
+# Maintainer: atareao <atareao@atareao.es>
+# Contributor: atareao <atareao@atareao.es>
+
+pkgname=mkdr-bin
+pkgver=0.3.3
+pkgrel=1
+pkgdesc="TUI markdown renderer with paging"
+arch=('x86_64' 'aarch64')
+url="https://github.com/atareao/mkdr"
+license=('MIT')
+provides=("$pkgname")
+conflicts=("$pkgname")
+
+source_x86_64=("$url/releases/download/v$pkgver/mkdr-x86_64-unknown-linux-gnu.tar.gz")
+source_aarch64=("$url/releases/download/v$pkgver/mkdr-aarch64-unknown-linux-gnu.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    install -Dm755 mkdr "$pkgdir/usr/bin/mkdr"
+    install -Dm644 "$srcdir/completions/mkdr.bash" "$pkgdir/usr/share/bash-completion/completions/mkdr"
+    install -Dm644 "$srcdir/completions/mkdr.zsh" "$pkgdir/usr/share/zsh/site-functions/_mkdr"
+    install -Dm644 "$srcdir/completions/mkdr.fish" "$pkgdir/usr/share/fish/vendor_completions.d/mkdr.fish"
+}
