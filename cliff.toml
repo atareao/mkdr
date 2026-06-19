@@ -24,11 +24,30 @@ conventional_commits = true
 filter_unconventional = true
 require_conventional = false
 split_commits = false
-commit_preprocessors = []
+commit_preprocessors = [
+    { pattern = "✨ ", replace = "" },
+    { pattern = "🐛 ", replace = "" },
+    { pattern = "🚑️ ", replace = "" },
+    { pattern = "📝 ", replace = "" },
+    { pattern = "♻️ ", replace = "" },
+    { pattern = "⚡ ", replace = "" },
+    { pattern = "💄 ", replace = "" },
+    { pattern = "✅ ", replace = "" },
+    { pattern = "🔧 ", replace = "" },
+    { pattern = "👷 ", replace = "" },
+    { pattern = "⏪️ ", replace = "" },
+    { pattern = "⬆️ ", replace = "" },
+    { pattern = "💥 ", replace = "" },
+    { pattern = "🔥 ", replace = "" },
+    { pattern = "🚀 ", replace = "" },
+    { pattern = "💚 ", replace = "" },
+    { pattern = "🔒️ ", replace = "" },
+]
 protect_breaking_commits = false
 commit_parsers = [
     { message = "^feat", group = "Features" },
     { message = "^fix", group = "Bug Fixes" },
+    { message = "^hotfix", group = "Bug Fixes" },
     { message = "^doc", group = "Documentation" },
     { message = "^perf", group = "Performance" },
     { message = "^refactor", group = "Refactor" },
