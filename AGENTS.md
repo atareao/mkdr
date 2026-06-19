@@ -30,14 +30,32 @@ Add with `cargo add` — do not hand-edit `[dependencies]` unless you have to. E
 
 Integration tests in `tests/` (snapshot-based with `insta`). Name unit tests `test_*` in a `#[cfg(test)] mod tests { ... }` block in the same file as the code under test. `cargo test` runs all.
 
-## Git & releases
+## Git Flow
 
-Git Flow — see [GIT_FLOW.md](GIT_FLOW.md) for full workflow.
+Este proyecto sigue **Git Flow** estricto.
 
-- `main` — production (merge aquí = release automático)
-- `development` — integración de features
-- `feature/*` — ramas de trabajo
-- `hotfix/*` — correcciones urgentes desde main
+| Rama | Propósito | Base |
+|---|---|---|
+| `main` | Producción. Cada merge aquí = release automática. | — |
+| `development` | Integración de features en curso. | `main` |
+| `feature/*` | Nuevas funcionalidades. | `development` |
+| `hotfix/*` | Correcciones urgentes a producción. | `main` |
 
-Commits: conventional-commit style (`feat:`, `fix:`, `refactor:`, `chore:`, etc.).
+### Conventional Commits con Gitmoji
+
+Formato: `<emoji> <tipo>(<scope>): <mensaje>`
+
+| Tipo | Emoji | Bump |
+|---|---|---|
+| `feat` | ✨ | minor |
+| `feat!` / `BREAKING CHANGE` | 💥 | major |
+| `fix` | 🐛 | patch |
+| `hotfix` | 🚑️ | patch |
+| `refactor` | ♻️ | patch |
+| `docs` | 📝 | patch |
+| `perf` | ⚡ | patch |
+| `test` | ✅ | patch |
+| `chore` | 🔧 | patch |
+| `ci` | 👷 | patch |
+
 NO hacer version bump manual — CI lo hace automáticamente al mergear a main.

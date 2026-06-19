@@ -1,4 +1,4 @@
-name: release
+name: Release
 
 on:
   push:
@@ -9,27 +9,6 @@ permissions:
   contents: write
 
 jobs:
-  completions:
-    name: Generate shell completions
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust toolchain
-        run: rustup target add x86_64-unknown-linux-gnu
-      - name: Build
-        run: cargo build --release
-      - name: Generate completions
-        run: |
-          mkdir -p completions
-          ./target/release/mkdr --completions bash > completions/mkdr.bash
-          ./target/release/mkdr --completions zsh > completions/mkdr.zsh
-          ./target/release/mkdr --completions fish > completions/mkdr.fish
-      - name: Upload completions
-        uses: actions/upload-artifact@v4
-        with:
-          name: completions
-          path: completions/
-
   build:
     name: ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
@@ -45,24 +24,12 @@ jobs:
             os: ubuntu-24.04-arm
             ext: ""
             archive: tar.gz
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            ext: ""
-            archive: tar.gz
-          - target: x86_64-pc-windows-msvc
-            os: windows-latest
-            ext: .exe
-            archive: zip
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Install Rust toolchain
         run: rustup target add ${{ matrix.target }}
-
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}
-
       - name: Prepare archive
         shell: bash
         run: |
@@ -74,10 +41,9 @@ jobs:
             tar czf "$PKG.tar.gz" "$ARCHIVE_NAME"
             echo "ARTIFACT=$PKG.tar.gz" >> $GITHUB_ENV
           else
-            7z a -tzip "$PKG.zip" "$ARCHIVE_NAME"
+            7z a "$PKG.zip" "$ARCHIVE_NAME"
             echo "ARTIFACT=$PKG.zip" >> $GITHUB_ENV
           fi
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -85,19 +51,13 @@ jobs:
           path: ${{ env.ARTIFACT }}
 
   release:
-    needs: [build, completions]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
         with:
           pattern: mkdr-*
           merge-multiple: true
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: completions
-          path: completions/
-
       - name: Generate release body
         run: |
           cat > notes.md <<'EOF'
@@ -115,14 +75,6 @@ jobs:
             arch=$(echo "$f" | sed 's/^mkdr-//; s/\.tar\.gz$//; s/\.zip$//')
             echo "| \`$arch\` | \`$f\` |" >> notes.md
           done
-          echo "" >> notes.md
-          echo "### Shell completions" >> notes.md
-          echo "" >> notes.md
-          echo "Available in the release assets:" >> notes.md
-          echo "- \`completions/mkdr.bash\` — Bash" >> notes.md
-          echo "- \`completions/mkdr.zsh\` — Zsh" >> notes.md
-          echo "- \`completions/mkdr.fish\` — Fish" >> notes.md
-
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
@@ -131,17 +83,14 @@ jobs:
           files: |
             *.tar.gz
             *.zip
-            completions/mkdr.bash
-            completions/mkdr.zsh
-            completions/mkdr.fish
           generate_release_notes: true
 
   publish:
-    needs: [build, completions]
+    needs: [build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --allow-dirty
+        run: cargo publish
