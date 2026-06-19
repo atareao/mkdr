@@ -12,6 +12,7 @@
 ### Miscellaneous Tasks
 
 - Release v0.5.3
+- Release v0.6.0
 ## [0.5.3] - 2026-05-25
 
 ### Bug Fixes
