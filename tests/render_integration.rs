@@ -76,10 +76,19 @@ fn test_cli_new_options_in_help() {
         .expect("failed to run mdr");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("--no-colour"), "help should mention --no-colour");
-    assert!(stdout.contains("--columns"), "help should mention --columns");
+    assert!(
+        stdout.contains("--no-colour"),
+        "help should mention --no-colour"
+    );
+    assert!(
+        stdout.contains("--columns"),
+        "help should mention --columns"
+    );
     assert!(stdout.contains("--fail"), "help should mention --fail");
-    assert!(stdout.contains("--detect-terminal"), "help should mention --detect-terminal");
+    assert!(
+        stdout.contains("--detect-terminal"),
+        "help should mention --detect-terminal"
+    );
     assert!(stdout.contains("--ansi"), "help should mention --ansi");
 }
 
@@ -100,9 +109,7 @@ fn test_cli_no_colour_accepts_stdin() {
         stdin.write_all(b"# Hello\n\nWorld.\n").unwrap();
     }
 
-    let result = child
-        .wait_with_output()
-        .expect("failed to wait");
+    let result = child.wait_with_output().expect("failed to wait");
     assert!(
         result.status.success(),
         "stderr: {}",
