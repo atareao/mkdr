@@ -154,7 +154,7 @@ No `rust-toolchain.toml` — uses whatever `rustup default` provides. Edition 20
 
 ## Git Flow & releases
 
-See [GIT_FLOW.md](GIT_FLOW.md) for the complete workflow.  
+See [AGENTS.md](AGENTS.md#git-flow) for the complete workflow.  
 Releases are automatic: merging to `main` triggers CI to bump the version, tag, and publish a GitHub release.
 
 ## License
