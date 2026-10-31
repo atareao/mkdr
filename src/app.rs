@@ -4,8 +4,6 @@ use std::io::{self, Write};
 use std::path::PathBuf;
 use std::time::SystemTime;
 
-
-
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
@@ -456,7 +454,11 @@ impl App {
         let content_area = if let Some(max_cols) = self.view.max_columns {
             let w = content_area.width.min(max_cols);
             let x = content_area.x + (content_area.width.saturating_sub(w)) / 2;
-            Rect { x, width: w, ..content_area }
+            Rect {
+                x,
+                width: w,
+                ..content_area
+            }
         } else {
             content_area
         };
@@ -903,19 +905,31 @@ impl App {
         self.status_message = None;
     }
 
-/// Resolve a local image URL to an absolute path.
+    /// Resolve a local image URL to an absolute path.
     fn resolve_image_path(&self, url: &str) -> Option<std::path::PathBuf> {
         if url.starts_with("http://") || url.starts_with("https://") {
             return None;
         }
         let path = std::path::Path::new(url);
         if path.is_absolute() {
-            if path.exists() { Some(path.to_path_buf()) } else { None }
+            if path.exists() {
+                Some(path.to_path_buf())
+            } else {
+                None
+            }
         } else if let Some(parent) = &self.file_state.parent_dir {
             let candidate = parent.join(url);
-            if candidate.exists() { Some(candidate) } else { None }
+            if candidate.exists() {
+                Some(candidate)
+            } else {
+                None
+            }
         } else {
-            if path.exists() { Some(path.to_path_buf()) } else { None }
+            if path.exists() {
+                Some(path.to_path_buf())
+            } else {
+                None
+            }
         }
     }
 
@@ -1027,32 +1041,30 @@ impl App {
         let mut placements: Vec<(usize, Vec<Line<'static>>)> = Vec::new();
 
         for (li, url) in &image_urls {
-            if let Some(path) = self.resolve_image_path(url)
+            if let Some(path) = self
+                .resolve_image_path(url)
                 .or_else(|| self.fetch_remote_image(url))
+                && let Ok(r) = image::ImageReader::open(&path)
+                && let Ok(img) = r.decode()
             {
-                if let Ok(r) = image::ImageReader::open(&path) {
-                    if let Ok(img) = r.decode() {
-                        let (iw, ih) = (img.width(), img.height());
+                let (iw, ih) = (img.width(), img.height());
 
-                        let eff_bound_h = bound_h * 2;
-                        let scale = (bound_w as f32 / iw.max(1) as f32)
-                            .min(eff_bound_h as f32 / ih.max(1) as f32);
-                        let disp_w = (iw as f32 * scale).round() as u32;
-                        let disp_h_px = (ih as f32 * scale).round() as u32;
-                        let disp_rows = (disp_h_px + 1).saturating_div(2).max(1);
+                let eff_bound_h = bound_h * 2;
+                let scale =
+                    (bound_w as f32 / iw.max(1) as f32).min(eff_bound_h as f32 / ih.max(1) as f32);
+                let disp_w = (iw as f32 * scale).round() as u32;
+                let disp_h_px = (ih as f32 * scale).round() as u32;
+                let disp_rows = (disp_h_px + 1).saturating_div(2).max(1);
 
-                        self.image_placements.push(ImagePlacement {
-                            path,
-                            line: *li,
-                            disp_cols: disp_w,
-                            disp_rows,
-                        });
+                self.image_placements.push(ImagePlacement {
+                    path,
+                    line: *li,
+                    disp_cols: disp_w,
+                    disp_rows,
+                });
 
-                        let blank = std::iter::repeat(Line::from(Span::raw(" ")))
-                            .take(disp_rows as usize);
-                        placements.push((*li, blank.collect()));
-                    }
-                }
+                let blank = std::iter::repeat_n(Line::from(Span::raw(" ")), disp_rows as usize);
+                placements.push((*li, blank.collect()));
             }
         }
 
@@ -1060,18 +1072,15 @@ impl App {
         for (li, blanks) in placements {
             let count = blanks.len();
             self.rendered.lines.splice(li..=li, blanks);
-            self.rendered.raw_lines.splice(
-                li..=li,
-                std::iter::repeat(String::new()).take(count),
-            );
-            self.rendered.wiki_links.splice(
-                li..=li,
-                std::iter::repeat(Vec::new()).take(count),
-            );
-            self.rendered.links.splice(
-                li..=li,
-                std::iter::repeat(Vec::new()).take(count),
-            );
+            self.rendered
+                .raw_lines
+                .splice(li..=li, std::iter::repeat_n(String::new(), count));
+            self.rendered
+                .wiki_links
+                .splice(li..=li, std::iter::repeat_n(Vec::new(), count));
+            self.rendered
+                .links
+                .splice(li..=li, std::iter::repeat_n(Vec::new(), count));
         }
     }
 
@@ -1123,7 +1132,7 @@ impl App {
             if p.exists() {
                 p
             } else if p.extension().is_none() {
-                let with_md = parent.join(format!("{}.md", &link.target));
+                let with_md = parent.join(format!("{}.md", link.target));
                 if with_md.exists() { with_md } else { p }
             } else {
                 p
@@ -1133,7 +1142,7 @@ impl App {
             if p.exists() {
                 p
             } else if p.extension().is_none() {
-                let with_md = PathBuf::from(format!("{}.md", &link.target));
+                let with_md = PathBuf::from(format!("{}.md", link.target));
                 if with_md.exists() { with_md } else { p }
             } else {
                 p

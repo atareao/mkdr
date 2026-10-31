@@ -417,10 +417,7 @@ impl Renderer {
                                     .fg(Color::DarkGray)
                                     .add_modifier(Modifier::BOLD)
                             };
-                            lines.push(Line::from(Span::styled(
-                                format!(" {} ", info),
-                                lang_style,
-                            )));
+                            lines.push(Line::from(Span::styled(format!(" {} ", info), lang_style)));
                             wiki_links.push(Vec::new());
                             links.push(Vec::new());
                         }
@@ -1821,8 +1818,16 @@ insta::with_settings!({snapshot_path => "../tests/snapshots"}, {
 
         for line in &lines {
             for span in &line.spans {
-                assert_eq!(span.style.fg, None, "no_colour span should have no fg, content={:?}", span.content);
-                assert_eq!(span.style.bg, None, "no_colour span should have no bg, content={:?}", span.content);
+                assert_eq!(
+                    span.style.fg, None,
+                    "no_colour span should have no fg, content={:?}",
+                    span.content
+                );
+                assert_eq!(
+                    span.style.bg, None,
+                    "no_colour span should have no bg, content={:?}",
+                    span.content
+                );
             }
         }
     }
