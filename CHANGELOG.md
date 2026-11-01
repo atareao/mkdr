@@ -12,6 +12,7 @@
 ### Miscellaneous Tasks
 
 - Add gitflow CI/CD setup
+- Release v0.6.2
 
 ### Styling
 
