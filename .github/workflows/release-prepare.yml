@@ -11,9 +11,9 @@ permissions:
 jobs:
   release:
     if: "!startsWith(github.event.head_commit.message, 'chore: release')"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           fetch-tags: true
@@ -30,16 +30,18 @@ jobs:
         id: bump
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD | head -1)
-          COMMITS=$(git log "$LAST_TAG"..HEAD --format="%s")
-          if echo "$COMMITS" | grep -q "BREAKING CHANGE\|!:"; then
+          COMMITS=$(git log "$LAST_TAG"..HEAD --no-merges --format="%s%n%b")
+          if echo "$COMMITS" | grep -qE "BREAKING CHANGE|!:|💥"; then
             echo "type=--major" >> "$GITHUB_OUTPUT"
-          elif echo "$COMMITS" | grep -q "^feat"; then
+          elif echo "$COMMITS" | grep -qE "^[^[:alnum:]]*feat"; then
             echo "type=--minor" >> "$GITHUB_OUTPUT"
           else
             echo "type=--patch" >> "$GITHUB_OUTPUT"
           fi
       - name: Bump version with vampus
         run: vampus upgrade ${{ steps.bump.outputs.type }}
+      - name: Sync Cargo.lock
+        run: cargo update --workspace
       - name: Get new version
         id: version
         run: |
@@ -60,4 +62,7 @@ jobs:
       - name: Sync development with main
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: gh api -X PUT repos/${{ github.repository }}/git/refs/heads/development -f sha=$(git rev-parse HEAD)
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/heads/development" \
+            -f sha="$(git rev-parse HEAD)" \
+            -F force=true
