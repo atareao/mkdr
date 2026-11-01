@@ -1,4 +1,20 @@
 # Changelog
+## [0.6.4] - 2026-11-01
+
+### Bug Fixes
+
+- *(release)* Sync Cargo.lock and force development ref update
+- *(release)* Detect breaking changes only in commit headers
+
+### Miscellaneous Tasks
+
+- *(actions)* Upgrade actions to Node 24 and fix bump detection
+- Release v1.0.0
+## [0.6.3] - 2026-11-01
+
+### Miscellaneous Tasks
+
+- Release v0.6.3
 ## [0.6.2] - 2026-10-31
 
 ### Bug Fixes
