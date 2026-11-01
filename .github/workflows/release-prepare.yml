@@ -30,10 +30,13 @@ jobs:
         id: bump
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD | head -1)
-          COMMITS=$(git log "$LAST_TAG"..HEAD --no-merges --format="%s%n%b")
-          if echo "$COMMITS" | grep -qE "BREAKING CHANGE|!:|💥"; then
+          SUBJECTS=$(git log "$LAST_TAG"..HEAD --no-merges --format="%s")
+          BODIES=$(git log "$LAST_TAG"..HEAD --no-merges --format="%b")
+          if echo "$SUBJECTS" | grep -qE "^[^[:alnum:]]*(feat|fix|hotfix|refactor|perf|docs|style|test|chore|ci|revert|deps)(\([^)]*\))?!:" \
+            || echo "$SUBJECTS" | grep -qE "^💥" \
+            || echo "$BODIES" | grep -qE "^BREAKING[ -]CHANGE:"; then
             echo "type=--major" >> "$GITHUB_OUTPUT"
-          elif echo "$COMMITS" | grep -qE "^[^[:alnum:]]*feat"; then
+          elif echo "$SUBJECTS" | grep -qE "^[^[:alnum:]]*feat"; then
             echo "type=--minor" >> "$GITHUB_OUTPUT"
           else
             echo "type=--patch" >> "$GITHUB_OUTPUT"
