@@ -58,7 +58,11 @@ pub fn find_prev_match(results: &[usize], current: Option<usize>) -> Option<usiz
 }
 
 /// Highlight occurrences of `query` in `line` by applying an inverted style to matches.
-pub fn highlight_line(line: &Line<'static>, query: &str) -> Line<'static> {
+///
+/// With `no_colour` set, the matches are still located and split into their own
+/// spans, but no highlight style is applied: the split spans keep the original
+/// span style, so the frame stays free of styling.
+pub fn highlight_line(line: &Line<'static>, query: &str, no_colour: bool) -> Line<'static> {
     if query.is_empty() {
         return line.clone();
     }
@@ -70,6 +74,14 @@ pub fn highlight_line(line: &Line<'static>, query: &str) -> Line<'static> {
         let content: &str = span.content.as_ref();
         let content_lower = content.to_lowercase();
         let base_style = span.style;
+        let match_style = if no_colour {
+            base_style
+        } else {
+            Style::default()
+                .fg(Color::White)
+                .bg(Color::Blue)
+                .add_modifier(Modifier::BOLD)
+        };
         let mut start = 0;
 
         while let Some(pos) = content_lower[start..].find(&query_lower) {
@@ -83,10 +95,7 @@ pub fn highlight_line(line: &Line<'static>, query: &str) -> Line<'static> {
             let match_end = abs_pos + query.len();
             new_spans.push(Span::styled(
                 content[abs_pos..match_end].to_string(),
-                Style::default()
-                    .fg(Color::White)
-                    .bg(Color::Blue)
-                    .add_modifier(Modifier::BOLD),
+                match_style,
             ));
             start = match_end;
         }
@@ -156,7 +165,7 @@ mod tests {
     #[test]
     fn test_highlight_line_basic() {
         let line = Line::from(Span::raw("hello world"));
-        let highlighted = highlight_line(&line, "world");
+        let highlighted = highlight_line(&line, "world", false);
         let text: String = highlighted
             .spans
             .iter()
@@ -169,7 +178,7 @@ mod tests {
     #[test]
     fn test_highlight_line_multiple_matches() {
         let line = Line::from(Span::raw("foo bar foo"));
-        let highlighted = highlight_line(&line, "foo");
+        let highlighted = highlight_line(&line, "foo", false);
         let text: String = highlighted
             .spans
             .iter()
@@ -181,7 +190,43 @@ mod tests {
     #[test]
     fn test_highlight_line_empty_query() {
         let line = Line::from(Span::raw("hello"));
-        let highlighted = highlight_line(&line, "");
+        let highlighted = highlight_line(&line, "", false);
         assert_eq!(highlighted.spans.len(), 1);
+    }
+
+    #[test]
+    fn test_highlight_line_respects_no_colour_policy() {
+        let line = Line::from(Span::raw("foo bar foo"));
+
+        // With the policy active the matches are still located and split out,
+        // but no highlight style is applied.
+        let plain = highlight_line(&line, "foo", true);
+        let plain_text: String = plain.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(plain_text, "foo bar foo");
+        assert_eq!(
+            plain.spans.len(),
+            3,
+            "matches should still split the line: {:?}",
+            plain.spans
+        );
+        for span in &plain.spans {
+            assert!(
+                span.style.fg.is_none()
+                    && span.style.bg.is_none()
+                    && span.style.add_modifier.is_empty(),
+                "no-colour highlight should not style anything: {:?}",
+                span.style
+            );
+        }
+
+        // Without the policy the matches keep the inverted highlight.
+        let styled = highlight_line(&line, "foo", false);
+        let styled_text: String = styled.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(styled_text, "foo bar foo");
+        assert!(
+            styled.spans.iter().any(|s| s.style.bg == Some(Color::Blue)),
+            "without the policy the match should keep its highlight: {:?}",
+            styled.spans
+        );
     }
 }
