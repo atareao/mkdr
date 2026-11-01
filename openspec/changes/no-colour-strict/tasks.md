@@ -43,5 +43,5 @@
 
 ## 5. Consolidación
 
-- [ ] 5.1 Abrir pull request de la rama del change hacia la rama de integración siguiendo el flujo del repositorio.
+- [x] 5.1 Abrir pull request de la rama del change hacia la rama de integración siguiendo el flujo del repositorio.
 - [ ] 5.2 Archivar el change con la herramienta de OpenSpec una vez integrado, para volcar los requisitos a las especificaciones del proyecto.
