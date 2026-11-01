@@ -40,6 +40,8 @@ jobs:
           fi
       - name: Bump version with vampus
         run: vampus upgrade ${{ steps.bump.outputs.type }}
+      - name: Sync Cargo.lock
+        run: cargo update --workspace
       - name: Get new version
         id: version
         run: |
@@ -60,4 +62,7 @@ jobs:
       - name: Sync development with main
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: gh api -X PUT repos/${{ github.repository }}/git/refs/heads/development -f sha=$(git rev-parse HEAD)
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/heads/development" \
+            -f sha="$(git rev-parse HEAD)" \
+            -F force=true
