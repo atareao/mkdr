@@ -1,4 +1,14 @@
 # Changelog
+## [0.6.5] - 2026-11-01
+
+### Bug Fixes
+
+- *(render)* Suppress every style under --no-colour
+
+### Documentation
+
+- *(openspec)* Marcar la tarea del pull request como completada
+- *(openspec)* Archivar el change no-colour-strict
 ## [0.6.4] - 2026-11-01
 
 ### Bug Fixes
@@ -10,6 +20,7 @@
 
 - *(actions)* Upgrade actions to Node 24 and fix bump detection
 - Release v1.0.0
+- Release v0.6.4
 ## [0.6.3] - 2026-11-01
 
 ### Miscellaneous Tasks
