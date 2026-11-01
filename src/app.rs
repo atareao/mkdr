@@ -153,6 +153,9 @@ struct BookmarkState {
 impl App {
     /// Create a new `App` with the given files and display options.
     ///
+    /// `no_colour` is the explicit "suppress all styling" policy requested by
+    /// the user; it no longer derives from the active theme.
+    ///
     /// Automatically loads the first file (or stdin content) on construction.
     #[expect(clippy::too_many_arguments)]
     pub fn new(
@@ -167,8 +170,8 @@ impl App {
         columns: Option<u16>,
         fail: bool,
         images: bool,
+        no_colour: bool,
     ) -> Self {
-        let no_colour = theme.is_plain();
         let mut app = App {
             rendered: RenderedContent {
                 lines: Vec::new(),
@@ -244,6 +247,31 @@ impl App {
         }
 
         app
+    }
+
+    /// Single styling decision point of the TUI chrome: under the no-colour
+    /// policy every requested style resolves to the terminal default, and the
+    /// requested style is returned otherwise.
+    ///
+    /// The status bar, the file list, the line numbers and the raw-view
+    /// frontmatter all route their styles through here.
+    fn chrome_style(&self, style: Style) -> Style {
+        if self.no_colour {
+            Style::default()
+        } else {
+            style
+        }
+    }
+
+    /// Prepends a right-aligned line number to `line`, resolving the number's
+    /// style through the no-colour policy before it reaches the line.
+    fn numbered_line(&self, line: Line<'static>, num: usize, total: usize) -> Line<'static> {
+        prepend_line_number(
+            line,
+            num,
+            total,
+            self.chrome_style(Style::default().fg(Color::DarkGray)),
+        )
     }
 
     fn load_current_file(&mut self) {
@@ -533,12 +561,12 @@ impl App {
             .enumerate()
             .map(|(i, line)| {
                 let line = if !self.search.search_query.is_empty() {
-                    highlight_line(line, &self.search.search_query)
+                    highlight_line(line, &self.search.search_query, self.no_colour)
                 } else {
                     line.clone()
                 };
                 if self.view.show_line_numbers {
-                    prepend_line_number(line, i + 1, self.rendered.lines.len())
+                    self.numbered_line(line, i + 1, self.rendered.lines.len())
                 } else {
                     line
                 }
@@ -613,19 +641,23 @@ impl App {
 
         let mut left_spans = vec![Span::styled(
             status_text,
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::Blue)
-                .add_modifier(Modifier::BOLD),
+            self.chrome_style(
+                Style::default()
+                    .fg(Color::White)
+                    .bg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
+            ),
         )];
 
         if let Some(msg) = &self.status_message {
             left_spans.push(Span::styled(
                 format!(" ⚠ {} ", msg),
-                Style::default()
-                    .fg(Color::Yellow)
-                    .bg(Color::Blue)
-                    .add_modifier(Modifier::BOLD),
+                self.chrome_style(
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .bg(Color::Blue)
+                        .add_modifier(Modifier::BOLD),
+                ),
             ));
         }
 
@@ -634,30 +666,36 @@ impl App {
                 let prompt = format!(" /{}_ ", self.search.input_buf);
                 left_spans.push(Span::styled(
                     prompt,
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .bg(Color::Blue)
-                        .add_modifier(Modifier::BOLD),
+                    self.chrome_style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .bg(Color::Blue)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                 ));
             }
             Mode::SearchBackward => {
                 let prompt = format!(" ?{}_ ", self.search.input_buf);
                 left_spans.push(Span::styled(
                     prompt,
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .bg(Color::Blue)
-                        .add_modifier(Modifier::BOLD),
+                    self.chrome_style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .bg(Color::Blue)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                 ));
             }
             Mode::GoToLine => {
                 let prompt = format!(" :{}_ ", self.search.input_buf);
                 left_spans.push(Span::styled(
                     prompt,
-                    Style::default()
-                        .fg(Color::Yellow)
-                        .bg(Color::Blue)
-                        .add_modifier(Modifier::BOLD),
+                    self.chrome_style(
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .bg(Color::Blue)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                 ));
             }
             Mode::FileList => {}
@@ -1333,14 +1371,16 @@ impl App {
         let mut result = Vec::new();
         result.push(Line::from(Span::styled(
             " Files ",
-            Style::default()
-                .fg(Color::White)
-                .bg(Color::Blue)
-                .add_modifier(Modifier::BOLD),
+            self.chrome_style(
+                Style::default()
+                    .fg(Color::White)
+                    .bg(Color::Blue)
+                    .add_modifier(Modifier::BOLD),
+            ),
         )));
         result.push(Line::from(Span::styled(
             "───",
-            Style::default().fg(Color::DarkGray),
+            self.chrome_style(Style::default().fg(Color::DarkGray)),
         )));
         for (i, path) in self.file_state.files.iter().enumerate() {
             let marker = if i == self.file_state.file_index {
@@ -1360,20 +1400,22 @@ impl App {
             };
             result.push(Line::from(Span::styled(
                 format!("{}{}", marker, path.display()),
-                Style::default().fg(fg).add_modifier(bold),
+                self.chrome_style(Style::default().fg(fg).add_modifier(bold)),
             )));
         }
         result
     }
 
     fn build_raw_lines(&self) -> Vec<Line<'static>> {
-        let para_style = self.theme.style_as_style("paragraph").unwrap_or_default();
-        let frontmatter_style = para_style.add_modifier(Modifier::DIM);
-        let code_style = self.theme.style_as_style("code_block").unwrap_or_default();
+        let para_style =
+            self.chrome_style(self.theme.style_as_style("paragraph").unwrap_or_default());
+        let frontmatter_style = self.chrome_style(para_style.add_modifier(Modifier::DIM));
+        let code_style =
+            self.chrome_style(self.theme.style_as_style("code_block").unwrap_or_default());
         let heading_styles: Vec<Style> = (0..6)
             .map(|i| {
                 let key = format!("heading{}", i + 1);
-                self.theme.style_as_style(&key).unwrap_or(para_style)
+                self.chrome_style(self.theme.style_as_style(&key).unwrap_or(para_style))
             })
             .collect();
 
@@ -1424,14 +1466,15 @@ impl App {
 
             if has_search && self.rendered.content_lower_lines[i].contains(&query_lower) {
                 let line_obj = Line::from(spans);
-                let highlighted = highlight_line(&line_obj, &self.search.search_query);
+                let highlighted =
+                    highlight_line(&line_obj, &self.search.search_query, self.no_colour);
                 spans = highlighted.spans;
             }
 
             let mut line_obj = Line::from(spans);
 
             if self.view.show_line_numbers {
-                line_obj = prepend_line_number(line_obj, i + 1, total_lines);
+                line_obj = self.numbered_line(line_obj, i + 1, total_lines);
             }
 
             result.push(line_obj);
@@ -1465,17 +1508,200 @@ impl App {
     }
 }
 
-fn prepend_line_number(mut line: Line<'static>, num: usize, total: usize) -> Line<'static> {
+/// Prepends a right-aligned line number to `line`, using `style` as the
+/// already-resolved style of the number.
+///
+/// The caller is responsible for routing that style through the no-colour
+/// policy ([`App::chrome_style`]); this function never applies the policy
+/// itself, so there is no second place where it could be forgotten.
+fn prepend_line_number(
+    mut line: Line<'static>,
+    num: usize,
+    total: usize,
+    style: Style,
+) -> Line<'static> {
     let digits = total.to_string().len();
     let num_str = format!("{:>width$} ", num, width = digits);
-    let num_span = Span::styled(num_str, Style::default().fg(Color::DarkGray));
-    line.spans.insert(0, num_span);
+    line.spans.insert(0, Span::styled(num_str, style));
     line
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::buffer::{Buffer, Cell};
+    use ratatui::widgets::Widget;
+
+    /// Markdown fixture exercising every construction the renderer styles:
+    /// heading, bold, italic, strikethrough, inline code, fenced code block,
+    /// link, table, bullet list, ordered list, block quote, horizontal rule
+    /// and task list.
+    const RICH_DOC: &str = r##"# Título principal
+
+Párrafo con **negrita**, *cursiva*, ~~tachado~~ y `código inline`.
+
+[Enlace](https://example.com)
+
+```rust
+fn main() {}
+```
+
+| Nombre | Edad |
+|--------|------|
+| Alice  | 30   |
+
+- viñeta
+
+1. primer elemento
+
+> una cita
+
+---
+
+- [x] hecho
+- [ ] pendiente
+"##;
+
+    /// Document with YAML frontmatter followed by body content, used to check
+    /// the raw view (which renders the frontmatter with an extra `DIM`).
+    const FRONTMATTER_DOC: &str =
+        "---\ntitle: Prueba\nauthor: alguien\n---\n\n# Título principal\n\nTexto del cuerpo.\n";
+
+    /// App built as `main.rs` builds it for `--no-colour`: plain theme and the
+    /// document coming from stdin (no disk access).
+    fn no_colour_app(md: &str, files: Vec<PathBuf>, line_numbers: bool, show_status: bool) -> App {
+        App::new(
+            files,
+            false,
+            WrapMode::Word,
+            line_numbers,
+            show_status,
+            Theme::plain(),
+            1,
+            Some(md.to_string()),
+            None,
+            false,
+            false,
+            true,
+        )
+    }
+
+    /// App built with a styled theme, i.e. the no-colour policy inactive.
+    fn styled_app(md: &str, line_numbers: bool, show_status: bool) -> App {
+        App::new(
+            Vec::new(),
+            false,
+            WrapMode::Word,
+            line_numbers,
+            show_status,
+            Theme::default_dark(),
+            1,
+            Some(md.to_string()),
+            None,
+            false,
+            false,
+            false,
+        )
+    }
+
+    /// `true` when the span carries neither colours nor modifiers.
+    fn span_is_plain(span: &Span<'static>) -> bool {
+        span.style.fg.is_none()
+            && span.style.bg.is_none()
+            && span.style.add_modifier.is_empty()
+            && span.style.sub_modifier.is_empty()
+    }
+
+    /// `true` when every span of every line is plain.
+    fn lines_are_plain(lines: &[Line<'static>]) -> bool {
+        lines
+            .iter()
+            .all(|line| line.spans.iter().all(span_is_plain))
+    }
+
+    /// `true` when the cell is drawn with the default style.
+    fn cell_is_plain(cell: &Cell) -> bool {
+        cell.fg == Color::Reset && cell.bg == Color::Reset && cell.modifier.is_empty()
+    }
+
+    /// `true` when every cell of the buffer is drawn with the default style.
+    fn buffer_is_plain(buffer: &Buffer) -> bool {
+        buffer.content.iter().all(cell_is_plain)
+    }
+
+    /// Human-readable list of the cells that are not plain, for failure messages.
+    fn styled_cells_report(buffer: &Buffer) -> String {
+        buffer
+            .content
+            .iter()
+            .enumerate()
+            .filter(|(_, cell)| !cell_is_plain(cell))
+            .take(5)
+            .map(|(i, cell)| {
+                let x = i as u16 % buffer.area.width;
+                let y = i as u16 / buffer.area.width;
+                format!(
+                    "({x},{y}) symbol={:?} fg={:?} bg={:?} modifier={:?}",
+                    cell.symbol(),
+                    cell.fg,
+                    cell.bg,
+                    cell.modifier
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+
+    /// Text drawn on row `y` of the buffer.
+    fn buffer_row_text(buffer: &Buffer, y: u16) -> String {
+        (0..buffer.area.width)
+            .map(|x| buffer[(x, y)].symbol())
+            .collect()
+    }
+
+    /// Draws one full frame of `app` into an in-memory backend and returns the
+    /// resulting buffer.
+    fn draw_frame(app: &mut App) -> Buffer {
+        let backend = TestBackend::new(100, 30);
+        let mut terminal =
+            Terminal::new(backend).expect("the test backend should always build a terminal");
+        terminal
+            .draw(|frame| app.render_frame(frame))
+            .expect("drawing into the test backend should succeed");
+        terminal.backend().buffer().clone()
+    }
+
+    /// Renders just the status bar of `app` into a fresh single-row buffer,
+    /// wide enough not to truncate the appended prompts.
+    fn status_bar_buffer(app: &App) -> Buffer {
+        let status = app.build_status_bar();
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 200, 1));
+        Widget::render(status, buffer.area, &mut buffer);
+        buffer
+    }
+
+    /// Asserts that every cell of `buffer` is plain, with `context` in the
+    /// failure message.
+    fn assert_buffer_plain(buffer: &Buffer, context: &str) {
+        assert!(
+            buffer_is_plain(buffer),
+            "{context} should be plain in no-colour mode, styled cells: {}",
+            styled_cells_report(buffer)
+        );
+    }
+
+    /// Asserts that the status bar of `app` draws with the default style only
+    /// and that it still shows `needle` — the prompt or message under test.
+    fn assert_status_bar_plain(app: &App, needle: &str) {
+        let buffer = status_bar_buffer(app);
+        assert_buffer_plain(&buffer, &format!("the status bar ({needle:?})"));
+        let text = buffer_row_text(&buffer, 0);
+        assert!(
+            text.contains(needle),
+            "the status bar should still draw {needle:?}, got {text:?}"
+        );
+    }
 
     #[test]
     fn wrap_mode_from_str_word() {
@@ -1507,17 +1733,235 @@ mod tests {
     #[test]
     fn prepend_line_number_adds_span() {
         let line = Line::from(Span::raw("content"));
-        let result = prepend_line_number(line, 5, 100);
+        let style = Style::default().fg(Color::DarkGray);
+        let result = prepend_line_number(line, 5, 100, style);
         assert_eq!(result.spans.len(), 2);
         assert!(result.spans[0].content.contains('5'));
+        assert_eq!(
+            result.spans[0].style, style,
+            "the number must carry the style it is given"
+        );
     }
 
     #[test]
     fn prepend_line_number_pads_width() {
         let line = Line::from(Span::raw("x"));
-        let result = prepend_line_number(line, 7, 1000);
+        let result = prepend_line_number(line, 7, 1000, Style::default().fg(Color::DarkGray));
         let num_text = result.spans[0].content.as_ref();
         assert_eq!(num_text.len(), 5); // 4 digits + space
         assert_eq!(num_text, "   7 ");
+        assert_eq!(
+            result.spans[0].style.fg,
+            Some(Color::DarkGray),
+            "padding must not drop the resolved style"
+        );
+    }
+
+    /// With the policy active the caller resolves the number's style to the
+    /// terminal default, so `numbered_line` must produce a plain span no
+    /// matter which literal the caller would otherwise have chosen.
+    #[test]
+    fn prepend_line_number_is_plain_under_no_colour_policy() {
+        let app = no_colour_app(RICH_DOC, Vec::new(), true, true);
+        let numbered = app.numbered_line(Line::from(Span::raw("content")), 5, 100);
+        let number = &numbered.spans[0];
+        assert!(
+            span_is_plain(number),
+            "the line number should be plain under the policy, style={:?}",
+            number.style
+        );
+    }
+
+    #[test]
+    fn status_bar_is_plain_in_no_colour_mode() {
+        let app = no_colour_app(RICH_DOC, Vec::new(), false, true);
+        let status = app.build_status_bar();
+        let mut buffer = Buffer::empty(Rect::new(0, 0, 100, 1));
+        Widget::render(status, buffer.area, &mut buffer);
+        assert!(
+            buffer_is_plain(&buffer),
+            "status bar should be plain in no-colour mode, styled cells: {}",
+            styled_cells_report(&buffer)
+        );
+    }
+
+    /// The inline command prompts (`/`, `?`, `:`) are drawn as part of the
+    /// status bar; under the policy they must neither colour nor bolden.
+    #[test]
+    fn status_bar_prompts_are_plain_in_no_colour_mode() {
+        for (mode, prompt) in [
+            (Mode::SearchForward, " /abc_ "),
+            (Mode::SearchBackward, " ?abc_ "),
+            (Mode::GoToLine, " :abc_ "),
+        ] {
+            let mut app = no_colour_app(RICH_DOC, Vec::new(), true, true);
+            app.mode = mode;
+            app.search.input_buf = "abc".to_string();
+
+            let frame = draw_frame(&mut app);
+            assert_buffer_plain(&frame, &format!("the frame with the {prompt:?} prompt"));
+            assert_status_bar_plain(&app, prompt);
+        }
+    }
+
+    /// The `⚠` status message is the last styled span of the status bar;
+    /// under the policy it must be plain too.
+    #[test]
+    fn status_message_is_plain_in_no_colour_mode() {
+        let mut app = no_colour_app(RICH_DOC, Vec::new(), false, true);
+        let message = "fichero no encontrado";
+        app.status_message = Some(message.to_string());
+
+        let frame = draw_frame(&mut app);
+        assert_buffer_plain(&frame, "the frame with a status message");
+        assert_status_bar_plain(&app, &format!(" ⚠ {message} "));
+    }
+
+    #[test]
+    fn file_list_is_plain_in_no_colour_mode() {
+        let app = no_colour_app(
+            RICH_DOC,
+            vec![PathBuf::from("primero.md"), PathBuf::from("segundo.md")],
+            false,
+            true,
+        );
+        let lines = app.build_file_list();
+        assert_eq!(lines.len(), 4, "header + separator + two files: {lines:#?}");
+        assert!(
+            lines_are_plain(&lines),
+            "file list should be plain in no-colour mode: {lines:#?}"
+        );
+    }
+
+    #[test]
+    fn line_numbers_are_plain_in_no_colour_mode() {
+        let app = no_colour_app(RICH_DOC, Vec::new(), true, true);
+        let lines = app.build_styled_lines();
+        assert!(!lines.is_empty(), "the fixture should render some lines");
+        for (i, line) in lines.iter().enumerate() {
+            let number = line
+                .spans
+                .first()
+                .expect("every line should start with its line number");
+            assert_eq!(
+                number.content.trim(),
+                (i + 1).to_string(),
+                "line {i} should start with its line number, got {:?}",
+                number.content
+            );
+            assert!(
+                span_is_plain(number),
+                "line number span should be plain in no-colour mode, style={:?}",
+                number.style
+            );
+        }
+    }
+
+    #[test]
+    fn raw_view_is_plain_in_no_colour_mode() {
+        let mut app = no_colour_app(FRONTMATTER_DOC, Vec::new(), false, false);
+        app.view.raw_mode = true;
+        let lines = app.build_raw_lines();
+        assert!(
+            lines.len() > 3,
+            "the fixture should render frontmatter and body: {lines:#?}"
+        );
+        assert!(
+            lines_are_plain(&lines),
+            "the raw view should be plain in no-colour mode: {lines:#?}"
+        );
+    }
+
+    #[test]
+    fn frame_buffer_is_plain_in_no_colour_mode() {
+        let mut app = no_colour_app(RICH_DOC, Vec::new(), true, true);
+        let buffer = draw_frame(&mut app);
+        assert!(
+            buffer_is_plain(&buffer),
+            "the whole frame should be plain in no-colour mode, styled cells: {}",
+            styled_cells_report(&buffer)
+        );
+    }
+
+    #[test]
+    fn frame_buffer_is_plain_in_no_colour_mode_with_search() {
+        let mut app = no_colour_app(RICH_DOC, Vec::new(), true, true);
+        app.mode = Mode::SearchForward;
+        for c in "Alice".chars() {
+            app.handle_search_key(KeyCode::Char(c));
+        }
+        app.handle_search_key(KeyCode::Enter);
+
+        // The search itself keeps working…
+        assert!(
+            matches!(app.mode, Mode::Normal),
+            "the search should have ended"
+        );
+        assert_eq!(
+            app.search.search_results.len(),
+            1,
+            "the fixture should contain the term exactly once"
+        );
+        let matched = app
+            .search
+            .search_idx
+            .expect("the search should select a match");
+        assert_eq!(
+            app.view.scroll, matched,
+            "the view should jump to the matched line"
+        );
+
+        // …without painting anything.
+        let buffer = draw_frame(&mut app);
+        assert!(
+            buffer_is_plain(&buffer),
+            "a frame with an active search should be plain, styled cells: {}",
+            styled_cells_report(&buffer)
+        );
+
+        // The status bar still reports the term and the position.
+        let status = buffer_row_text(&buffer, 29);
+        assert!(
+            status.contains("\"Alice\" [1/1]"),
+            "the status bar should report the match, got {status:?}"
+        );
+    }
+
+    #[test]
+    fn frame_buffer_is_plain_in_no_colour_mode_in_file_list() {
+        let mut app = no_colour_app(
+            RICH_DOC,
+            vec![PathBuf::from("primero.md"), PathBuf::from("segundo.md")],
+            true,
+            true,
+        );
+        app.mode = Mode::FileList;
+        let buffer = draw_frame(&mut app);
+        assert!(
+            buffer_is_plain(&buffer),
+            "the file list frame should be plain, styled cells: {}",
+            styled_cells_report(&buffer)
+        );
+    }
+
+    #[test]
+    fn frame_buffer_has_styles_without_no_colour() {
+        let mut app = styled_app(RICH_DOC, true, true);
+        let buffer = draw_frame(&mut app);
+        assert!(
+            buffer.content.iter().any(|cell| !cell_is_plain(cell)),
+            "with a styled theme the frame should contain styled cells"
+        );
+        assert!(
+            buffer
+                .content
+                .iter()
+                .any(|cell| cell.fg != Color::Reset || cell.bg != Color::Reset),
+            "with a styled theme the frame should contain coloured cells"
+        );
+        assert!(
+            buffer.content.iter().any(|cell| !cell.modifier.is_empty()),
+            "with a styled theme the frame should contain modified cells"
+        );
     }
 }

@@ -195,6 +195,7 @@ fn main() {
         cli_args.columns,
         cli_args.fail,
         cli_args.images,
+        cli_args.no_colour,
     );
 
     let result = app.run(&mut terminal);

@@ -336,6 +336,21 @@ impl Renderer {
         }
     }
 
+    /// Single styling decision point of the document layer: under the
+    /// no-colour policy every requested style resolves to the terminal
+    /// default, and the requested style is returned otherwise.
+    ///
+    /// Fallback styles of [`Renderer::new`] and the literal colours applied at
+    /// the points of use are all routed through here, so the policy has a
+    /// single place to be enforced.
+    fn style(&self, style: Style) -> Style {
+        if self.no_colour {
+            Style::default()
+        } else {
+            style
+        }
+    }
+
     fn render_doc(
         &self,
         mut parser: Parser<'_>,
@@ -410,13 +425,11 @@ impl Renderer {
                             && !info.is_empty()
                         {
                             raw.push(info.to_string());
-                            let lang_style = if self.no_colour {
-                                Style::default()
-                            } else {
+                            let lang_style = self.style(
                                 Style::default()
                                     .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::BOLD)
-                            };
+                                    .add_modifier(Modifier::BOLD),
+                            );
                             lines.push(Line::from(Span::styled(format!(" {} ", info), lang_style)));
                             wiki_links.push(Vec::new());
                             links.push(Vec::new());
@@ -440,11 +453,7 @@ impl Renderer {
                                 raw.push(format!("  {}", line_text));
                                 lines.push(Line::from(Span::styled(
                                     format!("  {}", line_text),
-                                    if self.no_colour {
-                                        Style::default()
-                                    } else {
-                                        self.code_block.as_style()
-                                    },
+                                    self.style(self.code_block.as_style()),
                                 )));
                                 wiki_links.push(Vec::new());
                                 links.push(Vec::new());
@@ -474,7 +483,9 @@ impl Renderer {
                             let prefix_width = marker.width();
                             let prefix = Span::styled(
                                 marker,
-                                Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
+                                self.style(
+                                    Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
+                                ),
                             );
                             let (mut item_spans, mut item_links, mut item_link_items, children) =
                                 self.collect_item_inline(&mut parser, &mut list_counters);
@@ -567,7 +578,7 @@ impl Renderer {
                         let quote_color = self
                             .quote_mark
                             .unwrap_or(QUOTE_COLORS[(quote_depth - 1) % QUOTE_COLORS.len()]);
-                        let mark_style = Style::default().fg(quote_color);
+                        let mark_style = self.style(Style::default().fg(quote_color));
                         for (gi, group) in line_groups.iter().enumerate() {
                             raw_line(group, raw);
                             let mut quoted =
@@ -624,7 +635,7 @@ impl Renderer {
                     raw.push(String::new());
                     lines.push(Line::from(Span::styled(
                         "─".repeat(RULE_WIDTH),
-                        Style::default().fg(self.rule.unwrap_or(Color::DarkGray)),
+                        self.style(Style::default().fg(self.rule.unwrap_or(Color::DarkGray))),
                     )));
                     wiki_links.push(Vec::new());
                     links.push(Vec::new());
@@ -634,7 +645,7 @@ impl Renderer {
                     raw.push(text.to_string());
                     lines.push(Line::from(Span::styled(
                         text.to_string(),
-                        self.code.as_style(),
+                        self.style(self.code.as_style()),
                     )));
                     wiki_links.push(Vec::new());
                     links.push(Vec::new());
@@ -671,11 +682,12 @@ impl Renderer {
         let mut spans: Vec<Span<'static>> = Vec::new();
         let mut buf = String::new();
         let mut col: usize = 0;
+        let base_style = self.style(base.as_style());
 
         loop {
             match events.next() {
                 Some(Event::Start(tag)) => {
-                    col += flush_buf(&mut buf, &mut spans, base);
+                    col += flush_buf(&mut buf, &mut spans, base_style);
                     match tag {
                         Tag::Emphasis => {
                             let child = self.collect_inline_with_breaks(
@@ -737,14 +749,18 @@ impl Renderer {
                                     title: title_text,
                                     col: link_col,
                                 });
-                                let url_style = Style::default()
-                                    .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::DIM);
+                                let url_style = self.style(
+                                    Style::default()
+                                        .fg(Color::DarkGray)
+                                        .add_modifier(Modifier::DIM),
+                                );
                                 child.push(Span::styled(format!(" ─ {}", target), url_style));
                             } else if !dest_url.is_empty() {
-                                let url_style = Style::default()
-                                    .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::DIM);
+                                let url_style = self.style(
+                                    Style::default()
+                                        .fg(Color::DarkGray)
+                                        .add_modifier(Modifier::DIM),
+                                );
                                 child.push(Span::styled(format!(" ─ {}", dest_url), url_style));
                                 links.push(LinkItem {
                                     url: dest_url.to_string(),
@@ -769,15 +785,17 @@ impl Renderer {
                             );
                             let icon = Span::styled(
                                 "🖼 ".to_string(),
-                                Style::default().fg(Color::DarkGray),
+                                self.style(Style::default().fg(Color::DarkGray)),
                             );
                             col += 2;
                             spans.push(icon);
                             spans.extend(child);
                             if !dest_url.is_empty() {
-                                let url_style = Style::default()
-                                    .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::DIM);
+                                let url_style = self.style(
+                                    Style::default()
+                                        .fg(Color::DarkGray)
+                                        .add_modifier(Modifier::DIM),
+                                );
                                 let url_span = Span::styled(format!(" ─ {}", dest_url), url_style);
                                 col += dest_url.width() + 2;
                                 spans.push(url_span);
@@ -795,20 +813,23 @@ impl Renderer {
                     }
                 }
                 Some(Event::End(tag_end)) if &tag_end == end_tag => {
-                    let _ = flush_buf(&mut buf, &mut spans, base);
+                    let _ = flush_buf(&mut buf, &mut spans, base_style);
                     break;
                 }
                 Some(Event::Text(text)) => {
                     buf.push_str(&text);
                 }
                 Some(Event::Code(text)) => {
-                    col += flush_buf(&mut buf, &mut spans, base);
-                    spans.push(Span::styled(text.to_string(), self.code.as_style()));
+                    col += flush_buf(&mut buf, &mut spans, base_style);
+                    spans.push(Span::styled(
+                        text.to_string(),
+                        self.style(self.code.as_style()),
+                    ));
                     col += text.width();
                 }
                 Some(Event::SoftBreak) | Some(Event::HardBreak) => {
                     if preserve_breaks {
-                        let _ = flush_buf(&mut buf, &mut spans, base);
+                        let _ = flush_buf(&mut buf, &mut spans, base_style);
                         spans.push(Span::raw("\n"));
                         col = 0;
                     } else {
@@ -816,12 +837,12 @@ impl Renderer {
                     }
                 }
                 Some(Event::TaskListMarker(checked)) => {
-                    col += flush_buf(&mut buf, &mut spans, base);
+                    col += flush_buf(&mut buf, &mut spans, base_style);
                     let icon = if checked { "☑" } else { "☐" };
                     let color = if checked { Color::Green } else { Color::Red };
                     spans.push(Span::styled(
                         icon.to_string(),
-                        Style::default().fg(color).add_modifier(Modifier::BOLD),
+                        self.style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
                     ));
                     col += icon.width();
                     spans.push(Span::raw(" "));
@@ -882,7 +903,7 @@ impl Renderer {
         lines: &mut Vec<Line<'static>>,
         raw: &mut Vec<String>,
     ) {
-        let b = self.table_border.as_style();
+        let b = self.style(self.table_border.as_style());
         let num_cols = data
             .headers
             .len()
@@ -986,7 +1007,7 @@ impl Renderer {
             }
             for s in cell_spans {
                 let span = if is_header {
-                    let style = s.style.add_modifier(Modifier::BOLD);
+                    let style = self.style(s.style.add_modifier(Modifier::BOLD));
                     Span::styled(s.content.clone(), style)
                 } else {
                     s.clone()
@@ -1028,12 +1049,13 @@ impl Renderer {
             Vec::new();
         let mut buf = String::new();
         let base = &self.para;
+        let base_style = self.style(base.as_style());
         let mut col: usize = 0;
 
         loop {
             match events.next() {
                 Some(Event::Start(tag)) => {
-                    col += flush_buf(&mut buf, &mut spans, base);
+                    col += flush_buf(&mut buf, &mut spans, base_style);
                     match tag {
                         Tag::Emphasis => {
                             let child = self.collect_inline(
@@ -1091,14 +1113,18 @@ impl Renderer {
                                     title: title_text,
                                     col: link_col,
                                 });
-                                let url_style = Style::default()
-                                    .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::DIM);
+                                let url_style = self.style(
+                                    Style::default()
+                                        .fg(Color::DarkGray)
+                                        .add_modifier(Modifier::DIM),
+                                );
                                 child.push(Span::styled(format!(" ─ {}", target), url_style));
                             } else if !dest_url.is_empty() {
-                                let url_style = Style::default()
-                                    .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::DIM);
+                                let url_style = self.style(
+                                    Style::default()
+                                        .fg(Color::DarkGray)
+                                        .add_modifier(Modifier::DIM),
+                                );
                                 child.push(Span::styled(format!(" ─ {}", dest_url), url_style));
                                 link_items.push(LinkItem {
                                     url: dest_url.to_string(),
@@ -1122,15 +1148,17 @@ impl Renderer {
                             );
                             let icon = Span::styled(
                                 "🖼 ".to_string(),
-                                Style::default().fg(Color::DarkGray),
+                                self.style(Style::default().fg(Color::DarkGray)),
                             );
                             col += 2;
                             spans.push(icon);
                             spans.extend(child);
                             if !dest_url.is_empty() {
-                                let url_style = Style::default()
-                                    .fg(Color::DarkGray)
-                                    .add_modifier(Modifier::DIM);
+                                let url_style = self.style(
+                                    Style::default()
+                                        .fg(Color::DarkGray)
+                                        .add_modifier(Modifier::DIM),
+                                );
                                 let url_span = Span::styled(format!(" ─ {}", dest_url), url_style);
                                 col += dest_url.width() + 2;
                                 spans.push(url_span);
@@ -1164,27 +1192,30 @@ impl Renderer {
                     }
                 }
                 Some(Event::End(TagEnd::Item)) => {
-                    let _ = flush_buf(&mut buf, &mut spans, base);
+                    let _ = flush_buf(&mut buf, &mut spans, base_style);
                     break;
                 }
                 Some(Event::Text(text)) => {
                     buf.push_str(&text);
                 }
                 Some(Event::Code(text)) => {
-                    col += flush_buf(&mut buf, &mut spans, base);
-                    spans.push(Span::styled(text.to_string(), self.code.as_style()));
+                    col += flush_buf(&mut buf, &mut spans, base_style);
+                    spans.push(Span::styled(
+                        text.to_string(),
+                        self.style(self.code.as_style()),
+                    ));
                     col += text.width();
                 }
                 Some(Event::SoftBreak) | Some(Event::HardBreak) => {
                     buf.push(' ');
                 }
                 Some(Event::TaskListMarker(checked)) => {
-                    col += flush_buf(&mut buf, &mut spans, base);
+                    col += flush_buf(&mut buf, &mut spans, base_style);
                     let icon = if checked { "☑" } else { "☐" };
                     let color = if checked { Color::Green } else { Color::Red };
                     spans.push(Span::styled(
                         icon.to_string(),
-                        Style::default().fg(color).add_modifier(Modifier::BOLD),
+                        self.style(Style::default().fg(color).add_modifier(Modifier::BOLD)),
                     ));
                     col += icon.width();
                     spans.push(Span::raw(" "));
@@ -1221,7 +1252,7 @@ impl Renderer {
                         let prefix_width = marker.width();
                         let prefix = Span::styled(
                             marker,
-                            Style::default().fg(self.bullet.unwrap_or(Color::DarkGray)),
+                            self.style(Style::default().fg(self.bullet.unwrap_or(Color::DarkGray))),
                         );
                         let (mut item_spans, mut item_links, mut item_link_items, grandchildren) =
                             self.collect_item_inline(events, list_counters);
@@ -1372,11 +1403,11 @@ fn highlight_code(
     result
 }
 
-fn flush_buf(buf: &mut String, spans: &mut Vec<Span<'static>>, base: &ThemeStyle) -> usize {
+fn flush_buf(buf: &mut String, spans: &mut Vec<Span<'static>>, style: Style) -> usize {
     if !buf.is_empty() {
         let text = std::mem::take(buf);
         let w = text.width();
-        spans.push(Span::styled(text, base.as_style()));
+        spans.push(Span::styled(text, style));
         w
     } else {
         0
@@ -1428,6 +1459,60 @@ insta::with_settings!({snapshot_path => "../tests/snapshots"}, {
                 insta::assert_debug_snapshot!($expr);
             });
         };
+    }
+
+    /// Markdown fixture exercising every construction whose styling must
+    /// disappear under the no-colour policy: heading, bold, italic,
+    /// strikethrough, inline code, fenced code block, link, table, bullet
+    /// list, ordered list, block quote, horizontal rule and task list.
+    const ALL_CONSTRUCTS_MD: &str = r##"# Título principal
+
+Párrafo con **negrita**, *cursiva*, ~~tachado~~ y `código inline`.
+
+[Enlace](https://example.com)
+
+```rust
+fn main() {}
+```
+
+| Nombre | Edad |
+|--------|------|
+| Alice  | 30   |
+
+- viñeta
+
+1. primer elemento
+
+> una cita
+
+---
+
+- [x] hecho
+- [ ] pendiente
+"##;
+
+    /// `true` when a span carries neither colours nor modifiers.
+    fn span_is_plain(span: &Span<'static>) -> bool {
+        span.style.fg.is_none()
+            && span.style.bg.is_none()
+            && span.style.add_modifier.is_empty()
+            && span.style.sub_modifier.is_empty()
+    }
+
+    /// `true` when every span of every line is plain.
+    fn all_spans_plain(lines: &[Line<'static>]) -> bool {
+        lines
+            .iter()
+            .all(|line| line.spans.iter().all(span_is_plain))
+    }
+
+    /// All rendered text of `lines`, concatenated.
+    fn rendered_text(lines: &[Line<'static>]) -> String {
+        lines
+            .iter()
+            .flat_map(|line| line.spans.iter())
+            .map(|span| span.content.as_ref())
+            .collect()
     }
 
     #[test]
@@ -1810,26 +1895,148 @@ insta::with_settings!({snapshot_path => "../tests/snapshots"}, {
     #[test]
     fn render_no_colour_strips_all_styles() {
         let theme = Theme::plain();
-        let md = "# Heading\n**bold** and *italic*\n```rust\nfn main() {}\n```\n";
-        let (lines, raw, _, _) = render_with_options(md, &theme, true);
+        let (lines, raw, _, _) = render_with_options(ALL_CONSTRUCTS_MD, &theme, true);
         assert!(!lines.is_empty(), "should produce output");
         assert!(!raw.is_empty(), "should produce raw output");
-        assert!(raw[0].contains("Heading"), "heading text preserved");
+        assert!(
+            raw[0].contains("Título principal"),
+            "heading text preserved"
+        );
 
         for line in &lines {
             for span in &line.spans {
-                assert_eq!(
-                    span.style.fg, None,
-                    "no_colour span should have no fg, content={:?}",
-                    span.content
-                );
-                assert_eq!(
-                    span.style.bg, None,
-                    "no_colour span should have no bg, content={:?}",
+                assert!(
+                    span_is_plain(span),
+                    "no_colour span should have no fg, no bg and no modifiers, \
+                     style={:?}, content={:?}",
+                    span.style,
                     span.content
                 );
             }
         }
+
+        // The text of every construction survives the style stripping.
+        let rendered = rendered_text(&lines);
+        assert!(
+            rendered.contains("Título principal"),
+            "heading text preserved: {rendered}"
+        );
+        assert!(
+            rendered.contains("Enlace"),
+            "link text preserved: {rendered}"
+        );
+        assert!(
+            rendered.contains("Alice"),
+            "table row text preserved: {rendered}"
+        );
+    }
+
+    #[test]
+    fn render_no_colour_all_constructs_are_plain() {
+        let theme = Theme::plain();
+        let (lines, _, _, _) = render_with_options(ALL_CONSTRUCTS_MD, &theme, true);
+
+        // Guard against a fixture that silently stops covering constructions.
+        let rendered = rendered_text(&lines);
+        for marker in [
+            "Título principal",
+            "negrita",
+            "cursiva",
+            "tachado",
+            "código inline",
+            "Enlace",
+            "fn main()",
+            "│",
+            "•",
+            "1. ",
+            "▐",
+            "─",
+            "☑",
+            "☐",
+        ] {
+            assert!(
+                rendered.contains(marker),
+                "fixture should render {marker:?}: {rendered}"
+            );
+        }
+
+        assert!(
+            all_spans_plain(&lines),
+            "every span should be plain with no_colour: {lines:#?}"
+        );
+    }
+
+    #[test]
+    fn render_no_colour_ignores_styled_theme() {
+        let theme = Theme::default_dark();
+        let (lines, _, _, _) = render_with_options(ALL_CONSTRUCTS_MD, &theme, true);
+        assert!(
+            all_spans_plain(&lines),
+            "no_colour should strip styles even with a styled theme: {lines:#?}"
+        );
+    }
+
+    #[test]
+    fn render_with_styled_theme_applies_styles() {
+        let theme = Theme::default_dark();
+        let (lines, _, _, _) = render_with_options(ALL_CONSTRUCTS_MD, &theme, false);
+        assert!(
+            lines
+                .iter()
+                .any(|line| line.spans.iter().any(|span| span.style.fg.is_some())),
+            "without no_colour the styled theme should colour spans: {lines:#?}"
+        );
+        assert!(
+            lines.iter().any(|line| line
+                .spans
+                .iter()
+                .any(|span| span.style.add_modifier.contains(Modifier::BOLD))),
+            "without no_colour the styled theme should bold spans: {lines:#?}"
+        );
+    }
+
+    /// Regression test for the spec scenario "Tema sin estilos y sin el flag".
+    ///
+    /// With `Theme::plain()` and the policy **inactive**, the renderer keeps
+    /// using its own fallbacks (bold, italic, strikethrough, yellowish inline
+    /// code, cyan underlined links, dark-grey bullets/borders…), which is
+    /// exactly the behaviour prior to the change. This test pins two things:
+    ///
+    /// 1. The rendered text is byte-for-byte the same as with the policy
+    ///    active: the flag only ever affects style, never content.
+    /// 2. At least one span still carries a style — i.e. the plain theme with
+    ///    `no_colour = false` does **not** route through the suppression
+    ///    helper. This assertion fails the moment someone makes the policy
+    ///    depend on the theme (the pre-change bug) or applies it
+    ///    unconditionally.
+    #[test]
+    fn render_plain_theme_without_no_colour_keeps_behaviour() {
+        let theme = Theme::plain();
+        let (without_flag, _, _, _) = render_with_options(ALL_CONSTRUCTS_MD, &theme, false);
+        let (with_flag, _, _, _) = render_with_options(ALL_CONSTRUCTS_MD, &theme, true);
+
+        assert_eq!(
+            rendered_text(&without_flag),
+            rendered_text(&with_flag),
+            "the flag changes styles only, never the rendered text"
+        );
+
+        assert!(
+            !all_spans_plain(&without_flag),
+            "with the policy inactive the plain theme must still use the \
+             renderer fallbacks, but every span came out plain — the \
+             suppression leaked into no_colour = false: {without_flag:#?}"
+        );
+        // The bold fallback of `Renderer::new` (the theme defines no styles)
+        // must survive, which also catches a suppression helper applied
+        // regardless of the flag.
+        assert!(
+            without_flag.iter().any(|line| line
+                .spans
+                .iter()
+                .any(|span| span.style.add_modifier.contains(Modifier::BOLD))),
+            "the renderer's bold fallback should still apply without the flag: {without_flag:#?}"
+        );
     }
 
     #[test]
